@@ -164,85 +164,92 @@ namespace Tazkarti.Services
             var selectedSeats = await GetSelectedEventSeatsAsync(eventId, seatIds);
             await EnsureUserOwnsSeatLocksAsync(seatIds, userId);
 
-            await using var tx = await db.Database.BeginTransactionAsync();
-            try
+            var strategy = db.Database.CreateExecutionStrategy();
+            var response = await strategy.ExecuteAsync(async () =>
             {
-                var updatedSeats = await db.EventSeats
-                    .Where(es =>
-                        es.EventId == eventId &&
-                        seatIds.Contains(es.Id) &&
-                        es.Status == EventSeatStatus.Available)
-                    .ExecuteUpdateAsync(s =>
-                        s.SetProperty(es => es.Status, EventSeatStatus.Sold));
-
-                if (updatedSeats != seatIds.Count)
-                    throw new ConflictException("One or more selected seats are no longer available.");
-
-                var updatedEvent = await db.Events
-                    .Where(e => e.Id == eventId && e.AvailableSeats >= seatIds.Count)
-                    .ExecuteUpdateAsync(s =>
-                        s.SetProperty(e => e.AvailableSeats, e => e.AvailableSeats - seatIds.Count));
-
-                if (updatedEvent == 0)
-                    throw new ConflictException("Not enough seats are available for this event.");
-
-                var booking = new Booking
+                await using var tx = await db.Database.BeginTransactionAsync();
+                try
                 {
-                    EventId = eventId,
-                    UserId = userId,
-                    Status = BookingStatus.Confirmed
-                };
+                    var updatedSeats = await db.EventSeats
+                        .Where(es =>
+                            es.EventId == eventId &&
+                            seatIds.Contains(es.Id) &&
+                            es.Status == EventSeatStatus.Available)
+                        .ExecuteUpdateAsync(s =>
+                            s.SetProperty(es => es.Status, EventSeatStatus.Sold));
 
-                db.Bookings.Add(booking);
-                await db.SaveChangesAsync();
+                    if (updatedSeats != seatIds.Count)
+                        throw new ConflictException("One or more selected seats are no longer available.");
 
-                foreach (var seat in selectedSeats)
-                {
-                    db.BookingSeats.Add(new BookingSeat
+                    var updatedEvent = await db.Events
+                        .Where(e => e.Id == eventId && e.AvailableSeats >= seatIds.Count)
+                        .ExecuteUpdateAsync(s =>
+                            s.SetProperty(e => e.AvailableSeats, e => e.AvailableSeats - seatIds.Count));
+
+                    if (updatedEvent == 0)
+                        throw new ConflictException("Not enough seats are available for this event.");
+
+                    var booking = new Booking
                     {
+                        EventId = eventId,
+                        UserId = userId,
+                        Status = BookingStatus.Confirmed
+                    };
+
+                    db.Bookings.Add(booking);
+                    await db.SaveChangesAsync();
+
+                    foreach (var seat in selectedSeats)
+                    {
+                        db.BookingSeats.Add(new BookingSeat
+                        {
+                            BookingId = booking.Id,
+                            EventSeatId = seat.EventSeatId,
+                            Price = seat.Price
+                        });
+                    }
+
+                    await db.SaveChangesAsync();
+                    await tx.CommitAsync();
+
+                    return new AssignedSeatBookingResponseDto
+                    {
+                        Message = "Booking confirmed successfully.",
                         BookingId = booking.Id,
-                        EventSeatId = seat.EventSeatId,
-                        Price = seat.Price
-                    });
+                        EventId = eventId,
+                        Status = ToApiStatus(booking.Status),
+                        TotalPrice = selectedSeats.Sum(s => s.Price),
+                        Seats = selectedSeats.Select(s => new BookedSeatDto
+                        {
+                            EventSeatId = s.EventSeatId,
+                            Label = s.Label,
+                            Section = s.SectionName,
+                            Price = s.Price
+                        })
+                    };
                 }
-
-                await db.SaveChangesAsync();
-                await tx.CommitAsync();
-                await ReleaseSelectedSeatLocksAsync(seatIds, userId);
-
-                logger.LogInformation(
-                    "Assigned-seat booking confirmed. User {UserId}, Event {EventId}, Booking {BookingId}, Seats {SeatCount}",
-                    userId,
-                    eventId,
-                    booking.Id,
-                    seatIds.Count);
-
-                return new AssignedSeatBookingResponseDto
+                catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
                 {
-                    Message = "Booking confirmed successfully.",
-                    BookingId = booking.Id,
-                    EventId = eventId,
-                    Status = ToApiStatus(booking.Status),
-                    TotalPrice = selectedSeats.Sum(s => s.Price),
-                    Seats = selectedSeats.Select(s => new BookedSeatDto
-                    {
-                        EventSeatId = s.EventSeatId,
-                        Label = s.Label,
-                        Section = s.SectionName,
-                        Price = s.Price
-                    })
-                };
-            }
-            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
-            {
-                await tx.RollbackAsync();
-                throw new ConflictException("One or more selected seats were already booked.");
-            }
-            catch
-            {
-                await tx.RollbackAsync();
-                throw;
-            }
+                    await tx.RollbackAsync();
+                    throw new ConflictException("One or more selected seats were already booked.");
+                }
+                catch
+                {
+                    await tx.RollbackAsync();
+                    throw;
+                }
+            });
+
+            await ReleaseSelectedSeatLocksAsync(seatIds, userId);
+
+            logger.LogInformation(
+                "Assigned-seat booking confirmed. User {UserId}, Event {EventId}, Booking {BookingId}, Seats {SeatCount}",
+                userId,
+                eventId,
+                response.BookingId,
+                seatIds.Count);
+
+            return response;
         }
 
         public async Task<int> ReleaseSelectedSeatLocksAsync(
