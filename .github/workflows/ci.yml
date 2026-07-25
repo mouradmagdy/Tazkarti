@@ -219,8 +219,8 @@ jobs:
           file: Tazkarti/Dockerfile
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_NAMESPACE }}/tazkarti-api:latest
-            ${{ secrets.DOCKERHUB_NAMESPACE }}/tazkarti-api:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/tazkarti-api:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/tazkarti-api:${{ github.sha }}
 
       - name: Build and push frontend image
         uses: docker/build-push-action@v7
@@ -231,5 +231,5 @@ jobs:
           build-args: |
             VITE_API_URL=
           tags: |
-            ${{ secrets.DOCKERHUB_NAMESPACE }}/tazkarti-frontend:latest
-            ${{ secrets.DOCKERHUB_NAMESPACE }}/tazkarti-frontend:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/tazkarti-frontend:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/tazkarti-frontend:${{ github.sha }}
