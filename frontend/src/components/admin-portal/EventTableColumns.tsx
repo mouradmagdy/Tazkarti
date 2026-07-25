@@ -53,6 +53,7 @@ const DetailsCell = ({ eventId }) => {
       date: null,
       price: 0,
       image: "",
+      totalSeats: 1,
     },
   });
   useEffect(() => {
@@ -65,11 +66,13 @@ const DetailsCell = ({ eventId }) => {
         date: data.date ? new Date(data.date) : null, // Convert to Date object if needed
         price: data.price || 0,
         image: data.image || "",
+        totalSeats: data.totalSeats || 1,
       });
     }
   }, [data, form]);
   // 2. Define a submit handler.
   function onSubmit(values: EventFormData) {
+    console.log("Form values:", values);
     const eventData = {
       name: values.name,
       venue: values.venue,
@@ -78,6 +81,7 @@ const DetailsCell = ({ eventId }) => {
       date: format(new Date(values.date), "yyyy-MM-dd"),
       price: values.price,
       image: values.image,
+      totalSeats: values.totalSeats,
     };
     updateEvent(
       { id: eventId, eventData },
@@ -90,7 +94,7 @@ const DetailsCell = ({ eventId }) => {
         onError: (error) => {
           console.error("Error updating event:", error);
         },
-      }
+      },
     );
   }
   const categoryOptions = [
@@ -181,6 +185,26 @@ const DetailsCell = ({ eventId }) => {
                         <Input
                           className="rounded"
                           placeholder="Enter price"
+                          type="number"
+                          {...field}
+                          onChange={(e) =>
+                            field.onChange(Number(e.target.value))
+                          }
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="totalSeats"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Total Seats</FormLabel>
+                      <FormControl>
+                        <Input
+                          className="rounded"
+                          placeholder="Enter total seats"
                           type="number"
                           {...field}
                           onChange={(e) =>
@@ -324,6 +348,6 @@ export const columns = [
   {
     accessorKey: "details",
     header: "",
-    cell: ({ row }) => <DetailsCell eventId={row.original._id} />,
+    cell: ({ row }) => <DetailsCell eventId={row.original.id} />,
   },
 ];

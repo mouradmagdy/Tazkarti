@@ -1,9 +1,11 @@
+import BookingModal from "@/components/BookingModal";
 import HomeSkeleton from "@/components/HomeSkeleton";
 import Pagination from "@/components/Pagination";
 import { Button } from "@/components/ui/button";
 import { useAuthContext } from "@/context/AuthContext";
-import { useCreateBooking } from "@/hooks/bookings/useCreateBooking";
+// import { useCreateBooking } from "@/hooks/bookings/useCreateBooking";
 import { useGetUserBookings } from "@/hooks/bookings/useGetUserBookings";
+import { useLockSeat } from "@/hooks/bookings/useLockSeat";
 import { useGetAllEvents } from "@/hooks/events/useGetAllEvents";
 import { CalendarDays, DollarSign, MapPin } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -15,7 +17,7 @@ interface Event {
   venue: string;
   price: number;
   category: string;
-  _id: string;
+  id: string;
   updatedAt: string;
   createdAt: string;
   createdBy: string;
@@ -26,14 +28,19 @@ const Home = () => {
   const [pageNumber, setPageNumber] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
+  const [lockedEvent, setLockedEvent] = useState<Event | null>(null);
+  const [lockSeconds, setLockSeconds] = useState(0);
+
   const { data, isPending } = useGetAllEvents(pageNumber, pageSize);
   // const { isPending, data } = useGetAllEvents();
   const { authUser } = useAuthContext();
-  const { isPending: loadingBooking, mutate: createBooking } =
-    useCreateBooking();
+  // const { isPending: loadingBooking, mutate: createBooking } =
+  //   useCreateBooking();
+  const { isPending: locking, mutate: lockSeat } = useLockSeat();
+
   const navigate = useNavigate();
   const { isPending: loadingUserBookings, data: userBookings } =
-    useGetUserBookings(authUser?._id ?? "");
+    useGetUserBookings(authUser?.id ?? "");
 
   useEffect(() => {
     const link = document.createElement("link");
@@ -69,39 +76,38 @@ const Home = () => {
     setPageNumber(1);
   };
 
-  const handleBooking = async (eventId: string) => {
+  // Phase 1 — lock the seat, then open the modal
+  const handleBooking = (event: Event) => {
     if (!authUser) {
       toast("Please login to book an event");
       navigate("/login");
       return;
     }
 
-    const bookingData = {
-      eventId: eventId,
-      userId: authUser._id,
-    };
-    const bookingToast = toast.loading("Processing your booking...");
-    createBooking(bookingData, {
-      onSuccess: () => {
-        toast.success("Booking successful!", {
-          id: bookingToast,
+    const lockToast = toast.loading("Reserving your seat...");
+    lockSeat(event.id, {
+      onSuccess: (data) => {
+        toast.success("Seat reserved! Complete your booking.", {
+          id: lockToast,
         });
-        navigate("/Congratulations");
+        setLockedEvent(event);
+        setLockSeconds(data.expiresInSeconds);
       },
-      onError: (error) => {
-        toast.error("Booking failed. Please try again.", {
-          id: bookingToast,
-        });
+      onError: (err: any) => {
+        const msg =
+          err?.response?.data?.message ?? "No seats available. Try again.";
+        toast.error(msg, { id: lockToast });
       },
     });
   };
+
   const isEventBooked = (eventId: string) => {
     if (!userBookings || !userBookings.bookings) {
       return false;
     }
 
     return userBookings.bookings.some(
-      (booking) => booking.event?._id === eventId
+      (booking) => booking.event?.id === eventId,
     );
   };
   const isEventPast = (eventDate: string) => {
@@ -115,9 +121,9 @@ const Home = () => {
     if (!userBookings || !userBookings.bookings) {
       return 0;
     }
-    // console.log("userBookings", userBookings.bookings[0]?.event._id);
+    // console.log("userBookings", userBookings.bookings[0]?.event.id);
     return userBookings.bookings.filter(
-      (booking) => booking?.event?._id === eventId
+      (booking) => booking?.event?.id === eventId,
     ).length;
   };
 
@@ -179,32 +185,32 @@ const Home = () => {
               </div>
               <div className="flex items-center justify-between w-full p-4">
                 <Link
-                  to={`/events/${event._id}`}
+                  to={`/events/${event.id}`}
                   className="text-base text-purple-600 hover:text-purple-800"
                 >
                   View Details
                 </Link>
                 <div className="text-gray-600 text-sm">
-                  {isEventBooked(event._id) && (
+                  {isEventBooked(event.id) && (
                     <span className="text-gray-500">
-                      x{eventBookingsCount(event._id)} Bookings
+                      x{eventBookingsCount(event.id)} Bookings
                     </span>
                   )}
                 </div>
                 <Button
-                  onClick={() => handleBooking(event._id)}
+                  onClick={() => handleBooking(event)}
                   className="px-5"
-                  disabled={loadingBooking || isEventPast(event.date)}
+                  disabled={locking || isEventPast(event.date)}
                 >
-                  {loadingBooking && (
+                  {locking && (
                     <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   )}
 
                   {isEventPast(event.date)
                     ? "Event has passed"
-                    : isEventBooked(event._id)
-                    ? "Booked"
-                    : "Book Now"}
+                    : isEventBooked(event.id)
+                      ? "Booked"
+                      : "Book Now"}
                 </Button>
               </div>
             </div>
@@ -221,6 +227,13 @@ const Home = () => {
         setPageSize={setPageSize}
         resetPageNumber={resetPageNumber}
       />
+      {lockedEvent && (
+        <BookingModal
+          event={lockedEvent}
+          initialSeconds={lockSeconds}
+          onClose={() => setLockedEvent(null)}
+        />
+      )}
     </div>
   );
 };

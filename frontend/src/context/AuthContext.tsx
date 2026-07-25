@@ -12,7 +12,7 @@ export interface AuthUser {
   username: string;
   profilePicture: string;
   role: string;
-  _id: string;
+  id: string;
 }
 interface AuthContextType {
   authUser: AuthUser | null;
@@ -38,7 +38,7 @@ export const AuthContextProvider = ({ children }) => {
           `${import.meta.env.VITE_API_URL}/api/auth/me`,
           {
             withCredentials: true,
-          }
+          },
         );
         setAuthUser(response.data);
         setIsAuthenticated(true);

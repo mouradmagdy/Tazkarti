@@ -24,6 +24,10 @@ export const EventFormSchema = z.object({
     .number()
     .min(0, "Price must be a positive number.")
     .max(100000, "Price must be at most 100000."),
+  totalSeats: z
+    .number()
+    .min(1, "Total seats must be at least 1.")
+    .max(1000, "Total seats must be at most 1000."),
   image: z
     .any()
     .refine((file) => file instanceof File, {
