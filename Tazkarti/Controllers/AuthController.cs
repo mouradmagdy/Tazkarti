@@ -15,7 +15,8 @@ public class AuthController(AuthService authService) : ControllerBase
     public async Task<IActionResult> Signup([FromBody] SignupDto dto)
     {
         var callerRole = User.FindFirstValue(ClaimTypes.Role);
-        var user = await authService.SignupAsync(dto, callerRole);
+        var (user, token) = await authService.SignupAsync(dto, callerRole);
+        AppendAuthCookie(token);
         return StatusCode(201, user);
     }
 
@@ -25,14 +26,7 @@ public class AuthController(AuthService authService) : ControllerBase
     {
         var (userDto, token) = await authService.LoginAsync(dto);
 
-        Response.Cookies.Append("jwt", token, new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.None,
-            Expires = DateTimeOffset.UtcNow.AddDays(15),
-            Path = "/"
-        });
+        AppendAuthCookie(token);
 
         return Ok(userDto);
     }
@@ -60,5 +54,17 @@ public class AuthController(AuthService authService) : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         var user = await authService.GetCurrentUserAsync(userId);
         return Ok(user);
+    }
+
+    private void AppendAuthCookie(string token)
+    {
+        Response.Cookies.Append("jwt", token, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.None,
+            Expires = DateTimeOffset.UtcNow.AddDays(15),
+            Path = "/"
+        });
     }
 }

@@ -7,6 +7,7 @@ import { useAuthContext } from "@/context/AuthContext";
 import { useGetUserBookings } from "@/hooks/bookings/useGetUserBookings";
 import { useLockSeat } from "@/hooks/bookings/useLockSeat";
 import { useGetAllEvents } from "@/hooks/events/useGetAllEvents";
+import axios from "axios";
 import { CalendarDays, DollarSign, MapPin } from "lucide-react";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -39,8 +40,7 @@ const Home = () => {
   const { isPending: locking, mutate: lockSeat } = useLockSeat();
 
   const navigate = useNavigate();
-  const { isPending: loadingUserBookings, data: userBookings } =
-    useGetUserBookings(authUser?.id ?? "");
+  const { data: userBookings } = useGetUserBookings(authUser?.id ?? "");
 
   useEffect(() => {
     const link = document.createElement("link");
@@ -93,9 +93,10 @@ const Home = () => {
         setLockedEvent(event);
         setLockSeconds(data.expiresInSeconds);
       },
-      onError: (err: any) => {
-        const msg =
-          err?.response?.data?.message ?? "No seats available. Try again.";
+      onError: (err: unknown) => {
+        const msg = axios.isAxiosError(err)
+          ? err.response?.data?.message ?? "No seats available. Try again."
+          : "No seats available. Try again.";
         toast.error(msg, { id: lockToast });
       },
     });
@@ -134,7 +135,7 @@ const Home = () => {
       <div className="grid grid-cols-2 rounded-lg my-10 ">
         {data.events.map((event: Event, index: number) => (
           <div
-            key={index}
+            key={event.id}
             className={`group rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 flex flex-col  border  m-2 ${
               isEventPast(event.date) && "opacity-50"
             }`}
@@ -142,7 +143,7 @@ const Home = () => {
             <div className="relative h-52 overflow-hidden">
               <img
                 src={event.image}
-                alt="Category 1"
+                alt={event.name}
                 className=" mb-4 w-full h-full transform group-hover:scale-105 transition-transform duration-500"
                 loading={index === 0 ? "eager" : "lazy"}
               />

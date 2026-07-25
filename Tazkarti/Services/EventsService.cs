@@ -98,6 +98,10 @@ public class EventService(AppDbContext db, Cloudinary cloudinary, ILogger<EventS
 
         if (dto.TotalSeats is not null)
         {
+            var bookedSeats = ev.TotalSeats - ev.AvailableSeats;
+            if (dto.TotalSeats.Value < bookedSeats)
+                throw new BadRequestException("Total seats cannot be lower than the number of already booked seats.");
+
             var diff = dto.TotalSeats.Value - ev.TotalSeats;
             ev.TotalSeats = dto.TotalSeats.Value;
             ev.AvailableSeats = Math.Max(0, ev.AvailableSeats + diff);

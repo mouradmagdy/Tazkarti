@@ -23,7 +23,7 @@ public class BookingsController(
 
         return Ok(new LockResponseDto
         {
-            Message = "Seat locked for 10 minutes. Complete your booking before the timer expires.",
+            Message = "Seat locked for 5 minutes. Complete your booking before the timer expires.",
             ExpiresInSeconds = 300
         });
     }

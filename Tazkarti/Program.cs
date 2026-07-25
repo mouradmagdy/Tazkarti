@@ -138,13 +138,13 @@ using (var scope = app.Services.CreateScope())
         if (!await roleManager.RoleExistsAsync(role))
             await roleManager.CreateAsync(new IdentityRole(role));
 
-    // Seed a default admin user if none exists yet
+    // Seed a default admin user only when deployment supplies a password.
     var adminSection = config.GetSection("Seed:Admin");
     var adminUsername = adminSection["Username"] ?? "admin";
-    var adminPassword = adminSection["Password"]
-        ?? throw new InvalidOperationException("Seed:Admin:Password is not configured");
+    var adminPassword = adminSection["Password"];
 
-    if (await userManager.FindByNameAsync(adminUsername) is null)
+    if (!string.IsNullOrWhiteSpace(adminPassword) &&
+        await userManager.FindByNameAsync(adminUsername) is null)
     {
         var admin = new User
         {

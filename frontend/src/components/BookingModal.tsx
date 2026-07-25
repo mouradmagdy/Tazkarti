@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { releaseLockAPI } from "@/apis/booking-api";
 import { Button } from "@/components/ui/button";
 import { useConfirmBooking } from "@/hooks/bookings/useConfirmBooking";
-import { releaseLockAPI } from "@/apis/booking-api";
+import axios from "axios";
 import { CalendarDays, Clock, MapPin, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 
@@ -13,7 +14,7 @@ interface BookingModalProps {
     date: string;
     venue: string;
   };
-  initialSeconds: number; // comes from the lock response
+  initialSeconds: number;
   onClose: () => void;
 }
 
@@ -28,33 +29,31 @@ export default function BookingModal({
   const navigate = useNavigate();
   const { mutate: confirmBooking, isPending: confirming } = useConfirmBooking();
 
-  // Countdown tick
   useEffect(() => {
-    if (secondsLeft <= 0) {
+    if (initialSeconds <= 0) {
       setExpired(true);
       return;
     }
+
     intervalRef.current = setInterval(() => {
-      setSecondsLeft((s) => {
-        if (s <= 1) {
+      setSecondsLeft((currentSeconds) => {
+        if (currentSeconds <= 1) {
           clearInterval(intervalRef.current!);
           setExpired(true);
           return 0;
         }
-        return s - 1;
+        return currentSeconds - 1;
       });
     }, 1000);
 
     return () => clearInterval(intervalRef.current!);
-  }, []); // run once on mount
+  }, [initialSeconds]);
 
   const minutes = Math.floor(secondsLeft / 60);
   const seconds = secondsLeft % 60;
-  const progress = secondsLeft / initialSeconds; // 1 → 0
-  const circumference = 2 * Math.PI * 28; // radius 28
+  const progress = initialSeconds > 0 ? secondsLeft / initialSeconds : 0;
+  const circumference = 2 * Math.PI * 28;
   const strokeDashoffset = circumference * (1 - progress);
-
-  // Urgency colour: green → amber → red
   const ringColour =
     secondsLeft > 120 ? "#7c3aed" : secondsLeft > 45 ? "#f59e0b" : "#ef4444";
 
@@ -67,9 +66,10 @@ export default function BookingModal({
         onClose();
         navigate("/Congratulations");
       },
-      onError: (err: any) => {
-        const msg =
-          err?.response?.data?.message ?? "Confirmation failed. Try again.";
+      onError: (err: unknown) => {
+        const msg = axios.isAxiosError(err)
+          ? err.response?.data?.message ?? "Confirmation failed. Try again."
+          : "Confirmation failed. Try again.";
         toast.error(msg, { id: confirmToast });
         if (msg.toLowerCase().includes("expired")) {
           setExpired(true);
@@ -83,20 +83,18 @@ export default function BookingModal({
     try {
       await releaseLockAPI(event.id);
     } catch {
-      // best-effort — lock will expire on its own anyway
+      // Best effort: the lock will expire on its own.
     }
     onClose();
   };
 
   return (
-    // Backdrop
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={(e) => e.target === e.currentTarget && handleCancel()}
     >
-      <div className="relative w-full max-w-md mx-4 bg-white rounded-2xl shadow-2xl overflow-hidden">
-        {/* Top colour bar — drains like a progress bar */}
-        <div className="h-1 bg-gray-100 w-full">
+      <div className="relative mx-4 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="h-1 w-full bg-gray-100">
           <div
             className="h-full transition-all duration-1000 ease-linear"
             style={{
@@ -106,27 +104,25 @@ export default function BookingModal({
           />
         </div>
 
-        {/* Close button */}
         <button
           onClick={handleCancel}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 transition-colors"
+          className="absolute right-4 top-4 text-gray-400 transition-colors hover:text-gray-700"
         >
-          <X className="w-5 h-5" />
+          <X className="h-5 w-5" />
         </button>
 
         <div className="p-6">
           {expired ? (
-            /* ── Expired state ── */
-            <div className="text-center py-6">
-              <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
-                <Clock className="w-8 h-8 text-red-500" />
+            <div className="py-6 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
+                <Clock className="h-8 w-8 text-red-500" />
               </div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">
+              <h2 className="mb-2 text-xl font-semibold text-gray-900">
                 Reservation expired
               </h2>
-              <p className="text-gray-500 text-sm mb-6">
-                Your 10-minute hold has expired. The seat has been released —
-                you can try booking again.
+              <p className="mb-6 text-sm text-gray-500">
+                Your 5-minute hold has expired. The seat has been released. You
+                can try booking again.
               </p>
               <Button
                 onClick={onClose}
@@ -136,12 +132,10 @@ export default function BookingModal({
               </Button>
             </div>
           ) : (
-            /* ── Active state ── */
             <>
-              <div className="flex items-start gap-4 mb-6">
-                {/* Countdown ring */}
-                <div className="relative flex-shrink-0 w-16 h-16">
-                  <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+              <div className="mb-6 flex items-start gap-4">
+                <div className="relative h-16 w-16 flex-shrink-0">
+                  <svg className="h-16 w-16 -rotate-90" viewBox="0 0 64 64">
                     <circle
                       cx="32"
                       cy="32"
@@ -175,19 +169,18 @@ export default function BookingModal({
                 </div>
 
                 <div>
-                  <p className="text-xs font-medium text-purple-600 uppercase tracking-wide mb-1">
+                  <p className="mb-1 text-xs font-medium uppercase tracking-wide text-purple-600">
                     Seat reserved
                   </p>
-                  <h2 className="text-lg font-semibold text-gray-900 leading-tight">
+                  <h2 className="text-lg font-semibold leading-tight text-gray-900">
                     {event.name}
                   </h2>
                 </div>
               </div>
 
-              {/* Event details */}
-              <div className="bg-gray-50 rounded-xl p-4 mb-6 space-y-2">
+              <div className="mb-6 space-y-2 rounded-xl bg-gray-50 p-4">
                 <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <CalendarDays className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                  <CalendarDays className="h-4 w-4 flex-shrink-0 text-purple-600" />
                   {new Date(event.date).toLocaleString("en-US", {
                     year: "numeric",
                     month: "long",
@@ -198,12 +191,12 @@ export default function BookingModal({
                   })}
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <MapPin className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                  <MapPin className="h-4 w-4 flex-shrink-0 text-purple-600" />
                   {event.venue}
                 </div>
               </div>
 
-              <p className="text-xs text-gray-400 text-center mb-5">
+              <p className="mb-5 text-center text-xs text-gray-400">
                 Your seat is held for{" "}
                 <span className="font-medium" style={{ color: ringColour }}>
                   {String(minutes).padStart(2, "0")}:
@@ -227,7 +220,7 @@ export default function BookingModal({
                   disabled={confirming}
                 >
                   {confirming ? (
-                    <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                   ) : (
                     "Confirm Booking"
                   )}

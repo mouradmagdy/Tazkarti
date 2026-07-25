@@ -15,7 +15,7 @@
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-        public string CreatedById { get; set; }
+        public string CreatedById { get; set; } = string.Empty;
         public User CreatedBy { get; set; } = null!;
         public ICollection<Booking> Bookings { get; set; } = [];
     }

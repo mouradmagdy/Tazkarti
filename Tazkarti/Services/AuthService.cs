@@ -11,7 +11,7 @@ namespace Tazkarti.Services
 {
     public class AuthService(UserManager<User> userManager, SignInManager<User> signInManager, IConfiguration config)
     {
-        public async Task<UserResponseDto> SignupAsync(SignupDto dto, string? callerRole)
+        public async Task<(UserResponseDto Dto, string Token)> SignupAsync(SignupDto dto, string? callerRole)
         {
             if (dto.Password != dto.ConfirmPassword)
                 throw new BadRequestException("Passwords do not match");
@@ -39,9 +39,10 @@ namespace Tazkarti.Services
             }
 
             // Assign role via Identity's role system
-            await userManager.AddToRoleAsync(user, dto.Role == "admin" ? "admin" : "user");
+            var role = dto.Role == "admin" ? "admin" : "user";
+            await userManager.AddToRoleAsync(user, role);
 
-            return ToDto(user, dto.Role == "admin" ? "admin" : "user");
+            return (ToDto(user, role), GenerateToken(user, role));
         }
 
         public async Task<(UserResponseDto Dto, string Token)> LoginAsync(LoginDto dto)

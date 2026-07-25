@@ -5,9 +5,10 @@ export function useConfirmBooking() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (eventId: string) => confirmBookingAPI(eventId),
-    onSuccess: () => {
-      // Refetch user bookings so the card switches to "Booked"
-      queryClient.invalidateQueries({ queryKey: ["userBookings"] });
+    onSuccess: (_data, eventId) => {
+      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["event", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["events"] });
     },
   });
 }
