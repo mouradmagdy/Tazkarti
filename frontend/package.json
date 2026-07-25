@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright test",
+    "test:e2e:full": "playwright test -c playwright.full-stack.config.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
@@ -37,6 +39,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",
+    "@playwright/test": "^1.62.0",
     "@types/node": "^22.15.18",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",

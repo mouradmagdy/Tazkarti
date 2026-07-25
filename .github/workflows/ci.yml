@@ -52,3 +52,143 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps
+
+      - name: Run Playwright tests
+        working-directory: frontend
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 30
+
+      - name: Upload Playwright test results
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-test-results
+          path: frontend/test-results/
+          retention-days: 30
+
+  full-stack-e2e:
+    name: Full-stack E2E
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_SA_PASSWORD: E2e_password_123!
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'E2e_password_123!' -C -Q 'SELECT 1' || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Setup NodeJS
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Restore backend dependencies
+        run: dotnet restore Tazkarti/Tazkarti.csproj
+
+      - name: Build backend
+        run: dotnet build Tazkarti/Tazkarti.csproj --configuration Release --no-restore
+
+      - name: Start backend
+        run: |
+          dotnet run --project Tazkarti/Tazkarti.csproj --configuration Release --no-build > backend.log 2>&1 &
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ASPNETCORE_URLS: http://127.0.0.1:5262
+          ConnectionStrings__DefaultConnection: Server=127.0.0.1,1433;Database=TazkartiE2E;User Id=sa;Password=E2e_password_123!;TrustServerCertificate=True;Encrypt=False;
+          ConnectionStrings__Redis: 127.0.0.1:6379
+          Jwt__Secret: ci-jwt-secret-that-is-at-least-32-characters-long
+          AllowedOrigins__0: http://127.0.0.1:5173
+          Cloudinary__CloudName: ci-cloud
+          Cloudinary__ApiKey: ci-key
+          Cloudinary__ApiSecret: ci-secret
+          Seed__Admin__Username: admin
+          Seed__Admin__Password: Admin12345!
+          Seed__Admin__FullName: Platform Admin
+          Seed__Admin__Gender: male
+          Seed__DemoData__ResetEvents: true
+
+      - name: Wait for backend
+        run: |
+          for i in {1..90}; do
+            if curl --fail --silent "http://127.0.0.1:5262/api/events/getAllEvents?pageNumber=1&pageSize=1" > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          cat backend.log
+          exit 1
+
+      - name: Run full-stack Playwright tests
+        working-directory: frontend
+        run: npm run test:e2e:full
+        env:
+          E2E_API_URL: http://127.0.0.1:5262
+
+      - name: Upload full-stack Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: full-stack-playwright-report
+          path: frontend/playwright-report/
+          retention-days: 30
+
+      - name: Upload full-stack Playwright test results
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: full-stack-playwright-test-results
+          path: frontend/test-results/
+          retention-days: 30
+
+      - name: Upload backend log
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-log
+          path: backend.log
+          retention-days: 30
