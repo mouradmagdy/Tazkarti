@@ -1,42 +1,81 @@
 import axios from "axios";
 
-export async function createBookingAPI(bookingData: {
+const BASE = import.meta.env.VITE_API_URL;
+
+export interface LockSeatResponse {
+  message: string;
+  expiresInSeconds: number;
+}
+
+export interface BookedSeat {
+  eventSeatId: string;
+  label: string;
+  section: string;
+  price: number;
+}
+
+export interface AssignedSeatBookingResponse {
+  message: string;
+  bookingId: string;
   eventId: string;
-  userId: string;
-}) {
-  try {
-    const response = await axios.post(
-      `${import.meta.env.VITE_API_URL}/api/bookings/book`,
-      bookingData,
-      { withCredentials: true }
-    );
-    return response.data;
-  } catch (error) {
-    console.error("Error during booking creation:", error);
-    if (axios.isAxiosError(error)) {
-      const errorMessage = error.response?.data?.message || "Booking failed";
-      console.log("Error message:", errorMessage);
-    } else {
-      console.log("Unexpected error:", error);
-    }
-  }
+  status: string;
+  totalPrice: number;
+  seats: BookedSeat[];
+}
+
+export interface UserBookingsResponse {
+  bookings: Array<{
+    id: string;
+    status: string;
+    totalPrice: number;
+    event: {
+      id: string;
+      name: string;
+      date: string;
+      venue: string;
+    };
+    seats: BookedSeat[];
+  }>;
+  count: number;
+}
+
+export async function lockEventSeatsAPI(eventId: string, eventSeatIds: string[]) {
+  const response = await axios.post<LockSeatResponse>(
+    `${BASE}/api/bookings/lock-seats`,
+    { eventId, eventSeatIds },
+    { withCredentials: true },
+  );
+  return response.data;
+}
+
+export async function confirmSeatBookingAPI(
+  eventId: string,
+  eventSeatIds: string[],
+) {
+  const response = await axios.post<AssignedSeatBookingResponse>(
+    `${BASE}/api/bookings/confirm-seats`,
+    { eventId, eventSeatIds },
+    { withCredentials: true },
+  );
+  return response.data;
+}
+
+export async function releaseEventSeatsAPI(
+  eventId: string,
+  eventSeatIds: string[],
+) {
+  const response = await axios.post(
+    `${BASE}/api/bookings/release-seats`,
+    { eventId, eventSeatIds },
+    { withCredentials: true },
+  );
+  return response.data as { message: string; released: number };
 }
 
 export async function getUserBookingsAPI(userId: string) {
-  try {
-    const response = await axios.get(
-      `${import.meta.env.VITE_API_URL}/api/bookings/user/${userId}`,
-      { withCredentials: true }
-    );
-    return response.data;
-  } catch (error) {
-    console.error("Error fetching user bookings:", error);
-    if (axios.isAxiosError(error)) {
-      const errorMessage =
-        error.response?.data?.message || "Failed to fetch bookings";
-      console.log("Error message:", errorMessage);
-    } else {
-      console.log("Unexpected error:", error);
-    }
-  }
+  const response = await axios.get<UserBookingsResponse>(
+    `${BASE}/api/bookings/user/${userId}`,
+    { withCredentials: true },
+  );
+  return response.data;
 }

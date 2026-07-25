@@ -29,9 +29,17 @@ import {
 import { FormControl, FormField, FormItem, FormLabel } from "../ui/form";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
 import { useUpdateEvents } from "@/hooks/events/useUpdateEvents";
 import toast from "react-hot-toast";
 import { useGetEvent } from "@/hooks/events/useGetEvent";
+import { useGetVenues } from "@/hooks/venues/useGetVenues";
 
 const DetailsCell = ({ eventId }) => {
   const navigate = useNavigate();
@@ -39,6 +47,7 @@ const DetailsCell = ({ eventId }) => {
   const [openModal, setOpenModal] = useState(false);
   const { isPending: isUpdating, mutate: updateEvent } = useUpdateEvents();
   const { data, isPending } = useGetEvent(eventId);
+  const venuesQuery = useGetVenues();
 
   const handleDelete = (id: string) => {
     deleteEventMutation(id);
@@ -48,6 +57,7 @@ const DetailsCell = ({ eventId }) => {
     defaultValues: {
       name: "",
       venue: "",
+      venueId: "",
       description: "",
       category: "",
       date: null,
@@ -60,6 +70,7 @@ const DetailsCell = ({ eventId }) => {
       form.reset({
         name: data.name || "",
         venue: data.venue || "",
+        venueId: data.venueId || "",
         description: data.description || "",
         category: data.category || "",
         date: data.date ? new Date(data.date) : null, // Convert to Date object if needed
@@ -68,17 +79,20 @@ const DetailsCell = ({ eventId }) => {
       });
     }
   }, [data, form]);
-  // 2. Define a submit handler.
+
   function onSubmit(values: EventFormData) {
-    const eventData = {
-      name: values.name,
-      venue: values.venue,
-      description: values.description,
-      category: values.category,
-      date: format(new Date(values.date), "yyyy-MM-dd"),
-      price: values.price,
-      image: values.image,
-    };
+    const eventData = new FormData();
+    eventData.append("name", values.name);
+    eventData.append("venue", values.venue);
+    eventData.append("venueId", values.venueId);
+    eventData.append("description", values.description);
+    eventData.append("category", values.category);
+    eventData.append("date", format(new Date(values.date), "yyyy-MM-dd"));
+    eventData.append("price", values.price.toString());
+    if (values.image instanceof File) {
+      eventData.append("image", values.image);
+    }
+
     updateEvent(
       { id: eventId, eventData },
       {
@@ -90,7 +104,7 @@ const DetailsCell = ({ eventId }) => {
         onError: (error) => {
           console.error("Error updating event:", error);
         },
-      }
+      },
     );
   }
   const categoryOptions = [
@@ -158,13 +172,40 @@ const DetailsCell = ({ eventId }) => {
                     placeholder="Enter event name"
                     // value={data?.name}
                   />
-                  <TextInputField
+                  <FormField
                     control={form.control}
-                    name="venue"
-                    label="Venue"
-                    placeholder="Enter venue"
+                    name="venueId"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col gap-1">
+                        <FormLabel className="text-start">Venue Layout</FormLabel>
+                        <Select
+                          value={field.value}
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            const venue = venuesQuery.data?.find(
+                              (item) => item.id === value,
+                            );
+                            form.setValue("venue", venue?.name ?? "");
+                          }}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="rounded">
+                              <SelectValue placeholder="Select layout" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {venuesQuery.data?.map((venue) => (
+                              <SelectItem key={venue.id} value={venue.id}>
+                                {venue.name} ({venue.seatCount} seats)
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
                   />
                 </div>
+                <input type="hidden" {...form.register("venue")} />
                 <TextInputField
                   control={form.control}
                   name="description"
@@ -324,6 +365,6 @@ export const columns = [
   {
     accessorKey: "details",
     header: "",
-    cell: ({ row }) => <DetailsCell eventId={row.original._id} />,
+    cell: ({ row }) => <DetailsCell eventId={row.original.id} />,
   },
 ];

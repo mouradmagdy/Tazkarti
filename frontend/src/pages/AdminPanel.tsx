@@ -4,6 +4,7 @@ import TableFilters from "@/components/TableFilters";
 import { DataTable } from "@/components/DataTable";
 import { columns } from "@/components/admin-portal/EventTableColumns";
 import { useGetAllEvents } from "@/hooks/events/useGetAllEvents";
+import VenueLayoutManager from "@/components/admin-portal/VenueLayoutManager";
 
 function AdminPanel() {
   const [searchValue, setSearchValue] = useState("");
@@ -75,6 +76,7 @@ function AdminPanel() {
 
   return (
     <>
+      <VenueLayoutManager />
       <div className="flex">
         <TableFilters
           searchValue={searchValue}

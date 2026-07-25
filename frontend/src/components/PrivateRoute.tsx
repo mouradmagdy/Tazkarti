@@ -1,24 +1,19 @@
 import { useAuthContext } from "@/context/AuthContext";
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import type { ReactNode } from "react";
+import { Navigate } from "react-router-dom";
 
-const PrivateRoute = ({ children }) => {
-  const { authUser, isLoading } = useAuthContext();
-  const navigate = useNavigate();
-  useEffect(() => {
-    if (!isLoading) {
-      if (!authUser || authUser.role !== "admin") {
-        navigate("/login");
-      }
-    }
-  });
+const PrivateRoute = ({ children }: { children: ReactNode }) => {
+  const { authUser, isLoading, isAuthenticated } = useAuthContext();
 
-  //  const { user, loading } = React.useContext(AuthContext);
-  // if (loading) return <div>Loading...</div>;
-  // if (!user || user.role !== 'Admin') return <Navigate to="/" />;
-  // return children;
+  if (isLoading) {
+    return <div className="p-6 text-sm text-muted-foreground">Loading...</div>;
+  }
 
-  return <div>{children}</div>;
+  if (!isAuthenticated || authUser?.role !== "admin") {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
 };
 
 export default PrivateRoute;

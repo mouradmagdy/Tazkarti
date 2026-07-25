@@ -45,24 +45,33 @@ import {
   type EventFormData,
 } from "./admin-portal/EventFormSchema";
 import { useAddEvents } from "@/hooks/events/useAddEvents";
+import { useGetVenues } from "@/hooks/venues/useGetVenues";
+
+interface TableFiltersProps {
+  addContent?: string;
+  searchValue: string;
+  setSearchValue: (value: string) => void;
+  sortBy: string;
+  setSortBy: (value: string) => void;
+}
 
 const TableFilters = ({
-  addContent,
+  addContent = "Add Event",
   searchValue,
   setSearchValue,
   sortBy,
   setSortBy,
-}: {
-  addContent: string;
-}) => {
+}: TableFiltersProps) => {
   const [openModal, setOpenModal] = useState(false);
 
   const { isPending: isSubmitting, mutate: addEvent } = useAddEvents();
+  const venuesQuery = useGetVenues();
   const form = useForm<EventFormData>({
     resolver: zodResolver(EventFormSchema),
     defaultValues: {
       name: "",
       venue: "",
+      venueId: "",
       description: "",
       category: "",
       date: null,
@@ -70,18 +79,25 @@ const TableFilters = ({
       image: undefined,
     },
   });
-  // 2. Define a submit handler.
+
   function onSubmit(values: EventFormData) {
+    if (!(values.image instanceof File)) {
+      form.setError("image", {
+        type: "manual",
+        message: "An image file is required.",
+      });
+      return;
+    }
+
     const formData = new FormData();
     formData.append("name", values.name);
     formData.append("venue", values.venue);
+    formData.append("venueId", values.venueId);
     formData.append("description", values.description);
     formData.append("category", values.category);
     formData.append("date", format(new Date(values.date), "yyyy-MM-dd"));
     formData.append("price", values.price.toString());
-    if (values.image instanceof File) {
-      formData.append("image", values.image);
-    }
+    formData.append("image", values.image);
 
     addEvent(formData, {
       onSuccess: () => {
@@ -179,13 +195,41 @@ const TableFilters = ({
                   label="Name"
                   placeholder="Enter event name"
                 />
-                <TextInputField
+                <FormField
                   control={form.control}
-                  name="venue"
-                  label="Venue"
-                  placeholder="Enter venue"
+                  name="venueId"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col gap-1">
+                      <FormLabel className="text-start">Venue Layout</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          const venue = venuesQuery.data?.find(
+                            (item) => item.id === value,
+                          );
+                          form.setValue("venue", venue?.name ?? "");
+                        }}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="rounded">
+                            <SelectValue placeholder="Select layout" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {venuesQuery.data?.map((venue) => (
+                            <SelectItem key={venue.id} value={venue.id}>
+                              {venue.name} ({venue.seatCount} seats)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
               </div>
+              <input type="hidden" {...form.register("venue")} />
               <TextInputField
                 control={form.control}
                 name="description"

@@ -11,6 +11,19 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+bin/
+obj/
+
+# Ignore all DLLs (optional, usually bin/ is enough)
+*.dll
+*.exe
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
 # OS and editor-specific files
 .vscode/*
 !.vscode/extensions.json

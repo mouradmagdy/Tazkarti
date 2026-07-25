@@ -4,7 +4,9 @@ import {
   useContext,
   useEffect,
   useState,
+  type Dispatch,
   type ReactNode,
+  type SetStateAction,
 } from "react";
 
 export interface AuthUser {
@@ -12,11 +14,11 @@ export interface AuthUser {
   username: string;
   profilePicture: string;
   role: string;
-  _id: string;
+  id: string;
 }
 interface AuthContextType {
   authUser: AuthUser | null;
-  setAuthUser: React.Dispatch<React.SetStateAction<AuthUser | null>>;
+  setAuthUser: Dispatch<SetStateAction<AuthUser | null>>;
   isLoading: boolean;
   isAuthenticated: boolean;
 }
@@ -27,10 +29,20 @@ export const AuthContext = createContext<AuthContextType>({
   isLoading: true,
 });
 
-export const AuthContextProvider = ({ children }) => {
+export const AuthContextProvider = ({ children }: { children: ReactNode }) => {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  const updateAuthUser: Dispatch<SetStateAction<AuthUser | null>> = (value) => {
+    setAuthUser((currentUser) => {
+      const nextUser =
+        typeof value === "function" ? value(currentUser) : value;
+      setIsAuthenticated(Boolean(nextUser));
+      return nextUser;
+    });
+  };
+
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -38,7 +50,7 @@ export const AuthContextProvider = ({ children }) => {
           `${import.meta.env.VITE_API_URL}/api/auth/me`,
           {
             withCredentials: true,
-          }
+          },
         );
         setAuthUser(response.data);
         setIsAuthenticated(true);
@@ -55,7 +67,7 @@ export const AuthContextProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider
-      value={{ authUser, setAuthUser, isAuthenticated, isLoading }}
+      value={{ authUser, setAuthUser: updateAuthUser, isAuthenticated, isLoading }}
     >
       {children}
     </AuthContext.Provider>

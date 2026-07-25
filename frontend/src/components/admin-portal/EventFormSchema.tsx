@@ -20,17 +20,11 @@ export const EventFormSchema = z.object({
     .string()
     .min(2, "Venue must be at least 2 characters.")
     .max(50, "Venue must be at most 50 characters."),
+  venueId: z.string().min(1, "Venue layout is required."),
   price: z
     .number()
     .min(0, "Price must be a positive number.")
     .max(100000, "Price must be at most 100000."),
-  image: z
-    .any()
-    .refine((file) => file instanceof File, {
-      message: "An image file is required.",
-    })
-    .refine((file) => file?.size > 0, {
-      message: "Please select a valid image file.",
-    }),
+  image: z.any().optional(),
 });
 export type EventFormData = z.infer<typeof EventFormSchema>;
