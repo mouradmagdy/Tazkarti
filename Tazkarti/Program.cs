@@ -15,8 +15,13 @@ var builder = WebApplication.CreateBuilder(args);
 
 // ── Database ─────────────────────────────────────────────────────────────────
 builder.Services.AddDbContext<AppDbContext>(opt =>
-    opt.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")
-    ,sql=>sql.CommandTimeout(360)));
+    opt.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        sql =>
+        {
+            sql.CommandTimeout(360);
+            sql.EnableRetryOnFailure(10, TimeSpan.FromSeconds(10), null);
+        }));
 
 // ── ASP.NET Identity ──────────────────────────────────────────────────────────
 builder.Services.AddIdentity<User, IdentityRole>(opt =>

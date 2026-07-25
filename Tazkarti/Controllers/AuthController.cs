@@ -8,7 +8,7 @@ namespace Tazkarti.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-public class AuthController(AuthService authService) : ControllerBase
+public class AuthController(AuthService authService, IConfiguration config) : ControllerBase
 {
     // POST /api/auth/signup
     [HttpPost("signup")]
@@ -35,13 +35,7 @@ public class AuthController(AuthService authService) : ControllerBase
     [HttpPost("logout")]
     public IActionResult Logout()
     {
-        Response.Cookies.Delete("jwt", new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.None,
-            Path = "/"
-        });
+        Response.Cookies.Delete("jwt", AuthCookieOptions());
         return Ok(new { message = "Logged out successfully" });
     }
 
@@ -58,13 +52,29 @@ public class AuthController(AuthService authService) : ControllerBase
 
     private void AppendAuthCookie(string token)
     {
-        Response.Cookies.Append("jwt", token, new CookieOptions
+        Response.Cookies.Append(
+            "jwt",
+            token,
+            AuthCookieOptions(DateTimeOffset.UtcNow.AddDays(15)));
+    }
+
+    private CookieOptions AuthCookieOptions(DateTimeOffset? expires = null)
+    {
+        var sameSite = config["Auth:CookieSameSite"]?.ToLowerInvariant() switch
+        {
+            "strict" => SameSiteMode.Strict,
+            "lax" => SameSiteMode.Lax,
+            "none" => SameSiteMode.None,
+            _ => SameSiteMode.None
+        };
+
+        return new CookieOptions
         {
             HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.None,
-            Expires = DateTimeOffset.UtcNow.AddDays(15),
+            Secure = config.GetValue("Auth:CookieSecure", true),
+            SameSite = sameSite,
+            Expires = expires,
             Path = "/"
-        });
+        };
     }
 }

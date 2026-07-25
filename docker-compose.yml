@@ -1,0 +1,56 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${TAZKARTI_DOCKER_MSSQL_SA_PASSWORD:-Tazkarti_password_123!}
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+
+  api:
+    build:
+      context: .
+      dockerfile: Tazkarti/Dockerfile
+    depends_on:
+      - sqlserver
+      - redis
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: Server=sqlserver,1433;Database=TazkartiDocker;User Id=sa;Password=${TAZKARTI_DOCKER_MSSQL_SA_PASSWORD:-Tazkarti_password_123!};TrustServerCertificate=True;Encrypt=False;
+      ConnectionStrings__Redis: redis:6379,abortConnect=false
+      Jwt__Secret: ${TAZKARTI_DOCKER_JWT_SECRET:-local-docker-jwt-secret-change-me-please-32-chars}
+      Cloudinary__CloudName: ${TAZKARTI_DOCKER_CLOUDINARY_CLOUD_NAME:-your-cloudinary-cloud-name}
+      Cloudinary__ApiKey: ${TAZKARTI_DOCKER_CLOUDINARY_API_KEY:-your-cloudinary-api-key}
+      Cloudinary__ApiSecret: ${TAZKARTI_DOCKER_CLOUDINARY_API_SECRET:-your-cloudinary-api-secret}
+      AllowedOrigins__0: http://localhost:8080
+      AllowedOrigins__1: http://127.0.0.1:8080
+      Auth__CookieSecure: "false"
+      Auth__CookieSameSite: Lax
+      Seed__Admin__Username: ${TAZKARTI_DOCKER_ADMIN_USERNAME:-admin}
+      Seed__Admin__Password: ${TAZKARTI_DOCKER_ADMIN_PASSWORD:-Admin12345!}
+      Seed__Admin__FullName: Platform Admin
+      Seed__Admin__Gender: male
+      Seed__DemoData__ResetEvents: ${TAZKARTI_DOCKER_SEED_DEMO_DATA:-true}
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_URL: ""
+    depends_on:
+      - api
+    ports:
+      - "${TAZKARTI_DOCKER_APP_PORT:-8080}:80"
+    restart: unless-stopped
+
+volumes:
+  sqlserver_data:
+  redis_data:
