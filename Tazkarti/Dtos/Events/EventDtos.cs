@@ -16,6 +16,8 @@ public class CreateEventDto
     [Required, MinLength(3), MaxLength(100)]
     public string Venue { get; set; } = string.Empty;
 
+    public Guid? VenueId { get; set; }
+
     [Required, Range(0, double.MaxValue)]
     public decimal Price { get; set; }
 
@@ -39,6 +41,8 @@ public class UpdateEventDto
     [MinLength(3), MaxLength(100)]
     public string? Venue { get; set; }
 
+    public Guid? VenueId { get; set; }
+
     [Range(0, double.MaxValue)]
     public decimal? Price { get; set; }
 
@@ -57,6 +61,7 @@ public class EventResponseDto
     public string Description { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
     public string Venue { get; set; } = string.Empty;
+    public Guid? VenueId { get; set; }
     public decimal Price { get; set; }
     public string? Image { get; set; }
     public DateTime Date { get; set; }

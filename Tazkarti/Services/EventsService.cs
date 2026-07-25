@@ -19,23 +19,38 @@ public class EventService(AppDbContext db, Cloudinary cloudinary, ILogger<EventS
         string createdById)    // string — IdentityUser.Id
     {
         ValidateCategory(dto.Category);
+        if (dto.VenueId is not null && !await db.Venues.AnyAsync(v => v.Id == dto.VenueId.Value))
+            throw new BadRequestException("Venue layout does not exist.");
+
         var imageUrl = await UploadImageAsync(imageFile);
 
+        var layoutSeatCount = dto.VenueId is null
+            ? 0
+            : await db.Seats.CountAsync(s => s.Section.VenueId == dto.VenueId.Value);
+
+        if (dto.VenueId is not null && layoutSeatCount == 0)
+            throw new BadRequestException("Venue layout must have seats before it can be assigned to an event.");
+
+        var totalSeats = dto.VenueId is null ? dto.TotalSeats : layoutSeatCount;
         var ev = new Event
         {
             Name = dto.Name,
             Description = dto.Description,
             Category = dto.Category,
             Venue = dto.Venue,
+            VenueId = dto.VenueId,
             Price = dto.Price,
             Date = dto.Date.ToUniversalTime(),
-            TotalSeats = dto.TotalSeats,
-            AvailableSeats = dto.TotalSeats,
+            TotalSeats = totalSeats,
+            AvailableSeats = totalSeats,
             Image = imageUrl,
             CreatedById = createdById
         };
 
         db.Events.Add(ev);
+        if (dto.VenueId is not null)
+            await AddEventSeatsAsync(ev, dto.VenueId.Value, dto.Price);
+
         await db.SaveChangesAsync();
 
         logger.LogInformation("Event created: {EventId}", ev.Id);
@@ -86,6 +101,28 @@ public class EventService(AppDbContext db, Cloudinary cloudinary, ILogger<EventS
         if (dto.Name is not null) ev.Name = dto.Name;
         if (dto.Description is not null) ev.Description = dto.Description;
         if (dto.Venue is not null) ev.Venue = dto.Venue;
+        if (dto.VenueId is not null)
+        {
+            if (!await db.Venues.AnyAsync(v => v.Id == dto.VenueId.Value))
+                throw new BadRequestException("Venue layout does not exist.");
+
+            var hasBookings = await db.Bookings.AnyAsync(b => b.EventId == id);
+            if (hasBookings && ev.VenueId != dto.VenueId)
+                throw new BadRequestException("Venue layout cannot be changed after bookings exist.");
+
+            ev.VenueId = dto.VenueId;
+
+            if (!await db.EventSeats.AnyAsync(es => es.EventId == id))
+            {
+                var layoutSeatCount = await db.Seats.CountAsync(s => s.Section.VenueId == dto.VenueId.Value);
+                if (layoutSeatCount == 0)
+                    throw new BadRequestException("Venue layout must have seats before it can be assigned to an event.");
+
+                ev.TotalSeats = layoutSeatCount;
+                ev.AvailableSeats = layoutSeatCount;
+                await AddEventSeatsAsync(ev, dto.VenueId.Value, dto.Price ?? ev.Price);
+            }
+        }
         if (dto.Price is not null) ev.Price = dto.Price.Value;
         if (dto.Date is not null) ev.Date = dto.Date.Value.ToUniversalTime();
         if (dto.Image is not null) ev.Image = dto.Image;
@@ -141,6 +178,24 @@ public class EventService(AppDbContext db, Cloudinary cloudinary, ILogger<EventS
         return result.SecureUrl.ToString();
     }
 
+    private async Task AddEventSeatsAsync(Event ev, Guid venueId, decimal defaultPrice)
+    {
+        var seatIds = await db.Seats
+            .Where(s => s.Section.VenueId == venueId)
+            .Select(s => s.Id)
+            .ToListAsync();
+
+        foreach (var seatId in seatIds)
+        {
+            ev.EventSeats.Add(new EventSeat
+            {
+                SeatId = seatId,
+                Price = defaultPrice,
+                Status = "available"
+            });
+        }
+    }
+
     private static void ValidateCategory(string category)
     {
         if (!ValidCategories.Contains(category))
@@ -155,6 +210,7 @@ public class EventService(AppDbContext db, Cloudinary cloudinary, ILogger<EventS
         Description = e.Description,
         Category = e.Category,
         Venue = e.Venue,
+        VenueId = e.VenueId,
         Price = e.Price,
         Image = e.Image,
         Date = e.Date,

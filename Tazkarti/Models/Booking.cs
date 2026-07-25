@@ -10,5 +10,6 @@
 
         public Event Event { get; set; } = null!;
         public User User { get; set; } = null!;
+        public ICollection<BookingSeat> Seats { get; set; } = [];
     }
 }

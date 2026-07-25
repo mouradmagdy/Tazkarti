@@ -91,6 +91,7 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<EventService>();
 builder.Services.AddScoped<BookingService>();
 builder.Services.AddScoped<SeatLockService>();
+builder.Services.AddScoped<VenueService>();
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 var allowedOrigins = builder.Configuration
