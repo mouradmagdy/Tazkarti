@@ -162,6 +162,10 @@ using (var scope = app.Services.CreateScope())
 
         await userManager.AddToRoleAsync(admin, "admin");
     }
+
+    await DemoDataSeeder.ResetEventsAsync(scope.ServiceProvider);
+    if (config.GetValue<bool>("Seed:DemoData:ExitAfterReset"))
+        return;
 }
 
 app.Run();

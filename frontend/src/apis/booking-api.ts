@@ -7,55 +7,75 @@ export interface LockSeatResponse {
   expiresInSeconds: number;
 }
 
-export interface LockStatusResponse {
-  locked: boolean;
-  remainingSeconds: number;
+export interface BookedSeat {
+  eventSeatId: string;
+  label: string;
+  section: string;
+  price: number;
 }
 
-export interface ConfirmBookingResponse {
+export interface AssignedSeatBookingResponse {
   message: string;
   bookingId: string;
   eventId: string;
   status: string;
+  totalPrice: number;
+  seats: BookedSeat[];
 }
 
-// Phase 1: reserve a seat for 5 minutes.
-export async function lockSeatAPI(eventId: string) {
+export interface UserBookingsResponse {
+  bookings: Array<{
+    id: string;
+    status: string;
+    totalPrice: number;
+    event: {
+      id: string;
+      name: string;
+      date: string;
+      venue: string;
+    };
+    seats: BookedSeat[];
+  }>;
+  count: number;
+}
+
+export async function lockEventSeatsAPI(eventId: string, eventSeatIds: string[]) {
   const response = await axios.post<LockSeatResponse>(
-    `${BASE}/api/bookings/lock`,
-    { eventId },
+    `${BASE}/api/bookings/lock-seats`,
+    { eventId, eventSeatIds },
     { withCredentials: true },
   );
   return response.data;
 }
 
-// Phase 2: confirm the reservation and write it to SQL Server.
-export async function confirmBookingAPI(eventId: string) {
-  const response = await axios.post<ConfirmBookingResponse>(
-    `${BASE}/api/bookings/confirm`,
-    { eventId },
+export async function confirmSeatBookingAPI(
+  eventId: string,
+  eventSeatIds: string[],
+) {
+  const response = await axios.post<AssignedSeatBookingResponse>(
+    `${BASE}/api/bookings/confirm-seats`,
+    { eventId, eventSeatIds },
     { withCredentials: true },
   );
   return response.data;
 }
 
-export async function releaseLockAPI(eventId: string) {
-  await axios.delete(`${BASE}/api/bookings/lock/${eventId}`, {
-    withCredentials: true,
-  });
-}
-
-export async function getLockStatusAPI(eventId: string) {
-  const response = await axios.get<LockStatusResponse>(
-    `${BASE}/api/bookings/lock-status/${eventId}`,
+export async function releaseEventSeatsAPI(
+  eventId: string,
+  eventSeatIds: string[],
+) {
+  const response = await axios.post(
+    `${BASE}/api/bookings/release-seats`,
+    { eventId, eventSeatIds },
     { withCredentials: true },
   );
-  return response.data;
+  return response.data as { message: string; released: number };
 }
 
 export async function getUserBookingsAPI(userId: string) {
-  const response = await axios.get(`${BASE}/api/bookings/user/${userId}`, {
-    withCredentials: true,
-  });
+  const response = await axios.get<UserBookingsResponse>(
+    `${BASE}/api/bookings/user/${userId}`,
+    { withCredentials: true },
+  );
   return response.data;
 }

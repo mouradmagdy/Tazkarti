@@ -19,19 +19,19 @@ public class EventService(AppDbContext db, Cloudinary cloudinary, ILogger<EventS
         string createdById)    // string — IdentityUser.Id
     {
         ValidateCategory(dto.Category);
-        if (dto.VenueId is not null && !await db.Venues.AnyAsync(v => v.Id == dto.VenueId.Value))
+        if (dto.VenueId is null)
+            throw new BadRequestException("Assigned-seat events require a venue layout.");
+
+        if (!await db.Venues.AnyAsync(v => v.Id == dto.VenueId.Value))
             throw new BadRequestException("Venue layout does not exist.");
 
         var imageUrl = await UploadImageAsync(imageFile);
 
-        var layoutSeatCount = dto.VenueId is null
-            ? 0
-            : await db.Seats.CountAsync(s => s.Section.VenueId == dto.VenueId.Value);
+        var layoutSeatCount = await db.Seats.CountAsync(s => s.Section.VenueId == dto.VenueId.Value);
 
-        if (dto.VenueId is not null && layoutSeatCount == 0)
+        if (layoutSeatCount == 0)
             throw new BadRequestException("Venue layout must have seats before it can be assigned to an event.");
 
-        var totalSeats = dto.VenueId is null ? dto.TotalSeats : layoutSeatCount;
         var ev = new Event
         {
             Name = dto.Name,
@@ -41,15 +41,14 @@ public class EventService(AppDbContext db, Cloudinary cloudinary, ILogger<EventS
             VenueId = dto.VenueId,
             Price = dto.Price,
             Date = dto.Date.ToUniversalTime(),
-            TotalSeats = totalSeats,
-            AvailableSeats = totalSeats,
+            TotalSeats = layoutSeatCount,
+            AvailableSeats = layoutSeatCount,
             Image = imageUrl,
             CreatedById = createdById
         };
 
         db.Events.Add(ev);
-        if (dto.VenueId is not null)
-            await AddEventSeatsAsync(ev, dto.VenueId.Value, dto.Price);
+        await AddEventSeatsAsync(ev, dto.VenueId.Value, dto.Price);
 
         await db.SaveChangesAsync();
 
@@ -101,29 +100,40 @@ public class EventService(AppDbContext db, Cloudinary cloudinary, ILogger<EventS
         if (dto.Name is not null) ev.Name = dto.Name;
         if (dto.Description is not null) ev.Description = dto.Description;
         if (dto.Venue is not null) ev.Venue = dto.Venue;
+        if (dto.Price is not null) ev.Price = dto.Price.Value;
+
         if (dto.VenueId is not null)
         {
             if (!await db.Venues.AnyAsync(v => v.Id == dto.VenueId.Value))
                 throw new BadRequestException("Venue layout does not exist.");
 
             var hasBookings = await db.Bookings.AnyAsync(b => b.EventId == id);
-            if (hasBookings && ev.VenueId != dto.VenueId)
+            var venueChanged = ev.VenueId != dto.VenueId;
+            if (hasBookings && venueChanged)
                 throw new BadRequestException("Venue layout cannot be changed after bookings exist.");
 
-            ev.VenueId = dto.VenueId;
-
-            if (!await db.EventSeats.AnyAsync(es => es.EventId == id))
+            if (venueChanged || !await db.EventSeats.AnyAsync(es => es.EventId == id))
             {
                 var layoutSeatCount = await db.Seats.CountAsync(s => s.Section.VenueId == dto.VenueId.Value);
                 if (layoutSeatCount == 0)
                     throw new BadRequestException("Venue layout must have seats before it can be assigned to an event.");
 
+                if (venueChanged)
+                    await db.EventSeats.Where(es => es.EventId == id).ExecuteDeleteAsync();
+
+                ev.VenueId = dto.VenueId;
                 ev.TotalSeats = layoutSeatCount;
                 ev.AvailableSeats = layoutSeatCount;
-                await AddEventSeatsAsync(ev, dto.VenueId.Value, dto.Price ?? ev.Price);
+                await AddEventSeatsAsync(ev, dto.VenueId.Value, ev.Price);
             }
         }
-        if (dto.Price is not null) ev.Price = dto.Price.Value;
+
+        if (dto.Price is not null && !await db.Bookings.AnyAsync(b => b.EventId == id))
+        {
+            await db.EventSeats
+                .Where(es => es.EventId == id)
+                .ExecuteUpdateAsync(s => s.SetProperty(es => es.Price, ev.Price));
+        }
         if (dto.Date is not null) ev.Date = dto.Date.Value.ToUniversalTime();
         if (dto.Image is not null) ev.Image = dto.Image;
 
@@ -135,6 +145,9 @@ public class EventService(AppDbContext db, Cloudinary cloudinary, ILogger<EventS
 
         if (dto.TotalSeats is not null)
         {
+            if (ev.VenueId is not null)
+                throw new BadRequestException("Total seats are derived from the assigned venue layout.");
+
             var bookedSeats = ev.TotalSeats - ev.AvailableSeats;
             if (dto.TotalSeats.Value < bookedSeats)
                 throw new BadRequestException("Total seats cannot be lower than the number of already booked seats.");
@@ -191,7 +204,7 @@ public class EventService(AppDbContext db, Cloudinary cloudinary, ILogger<EventS
             {
                 SeatId = seatId,
                 Price = defaultPrice,
-                Status = "available"
+                Status = EventSeatStatus.Available
             });
         }
     }

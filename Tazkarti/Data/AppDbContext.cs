@@ -56,9 +56,13 @@ namespace Tazkarti.Data
                 e.HasKey(bk => bk.Id);
                 e.HasIndex(bk => bk.UserId);
                 e.HasIndex(bk => bk.EventId);
-                e.HasIndex(bk => new { bk.EventId, bk.UserId }).IsUnique(); // no double-booking
 
-                e.Property(bk => bk.Status).HasMaxLength(20).HasDefaultValue("confirmed"); // change to enum
+                e.Property(bk => bk.Status)
+                 .HasConversion(
+                    status => status.ToString().ToLowerInvariant(),
+                    value => Enum.Parse<BookingStatus>(value, true))
+                 .HasMaxLength(20)
+                 .HasDefaultValue(BookingStatus.Confirmed);
 
                 e.HasOne(bk => bk.Event)
                  .WithMany(ev => ev.Bookings)
@@ -120,7 +124,12 @@ namespace Tazkarti.Data
                 e.HasIndex(es => es.SeatId);
 
                 e.Property(es => es.Price).HasColumnType("decimal(10,2)");
-                e.Property(es => es.Status).HasMaxLength(20).HasDefaultValue("available");
+                e.Property(es => es.Status)
+                 .HasConversion(
+                    status => status.ToString().ToLowerInvariant(),
+                    value => Enum.Parse<EventSeatStatus>(value, true))
+                 .HasMaxLength(20)
+                 .HasDefaultValue(EventSeatStatus.Available);
 
                 e.HasOne(es => es.Event)
                  .WithMany(ev => ev.EventSeats)

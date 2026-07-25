@@ -16,6 +16,7 @@ public class CreateEventDto
     [Required, MinLength(3), MaxLength(100)]
     public string Venue { get; set; } = string.Empty;
 
+    [Required]
     public Guid? VenueId { get; set; }
 
     [Required, Range(0, double.MaxValue)]
@@ -24,8 +25,8 @@ public class CreateEventDto
     [Required]
     public DateTime Date { get; set; }
 
-    [Required, Range(1, int.MaxValue, ErrorMessage = "TotalSeats must be at least 1")]
-    public int TotalSeats { get; set; }
+    [Range(1, int.MaxValue, ErrorMessage = "TotalSeats must be at least 1")]
+    public int? TotalSeats { get; set; }
 }
 
 public class UpdateEventDto

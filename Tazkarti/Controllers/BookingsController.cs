@@ -13,52 +13,28 @@ public class BookingsController(
     SeatLockService seatLockService,
     BookingService bookingService) : ControllerBase
 {
-    // POST /api/bookings/lock
-    [HttpPost("lock")]
-    public async Task<IActionResult> Lock([FromBody] LockSeatDto dto)
+    // POST /api/bookings/lock-seats
+    [HttpPost("lock-seats")]
+    public async Task<IActionResult> LockSeats([FromBody] LockEventSeatsDto dto)
+        => Ok(await seatLockService.TryLockSelectedSeatsAsync(
+            dto.EventId,
+            dto.EventSeatIds,
+            GetUserId()));
+
+    // POST /api/bookings/confirm-seats
+    [HttpPost("confirm-seats")]
+    public async Task<IActionResult> ConfirmSeats([FromBody] ConfirmSeatBookingDto dto)
+        => StatusCode(201, await seatLockService.ConfirmSelectedSeatsAsync(
+            dto.EventId,
+            dto.EventSeatIds,
+            GetUserId()));
+
+    // POST /api/bookings/release-seats
+    [HttpPost("release-seats")]
+    public async Task<IActionResult> ReleaseSeats([FromBody] ReleaseEventSeatsDto dto)
     {
-        var success = await seatLockService.TryLockAsync(dto.EventId, GetUserId());
-        if (!success)
-            return Conflict(new { message = "No available seats or you already have a pending reservation." });
-
-        return Ok(new LockResponseDto
-        {
-            Message = "Seat locked for 5 minutes. Complete your booking before the timer expires.",
-            ExpiresInSeconds = 300
-        });
-    }
-
-    // GET /api/bookings/lock-status/{eventId}
-    [HttpGet("lock-status/{eventId:guid}")]
-    public async Task<IActionResult> LockStatus(Guid eventId)
-    {
-        var ttl = await seatLockService.GetLockTtlAsync(eventId, GetUserId());
-        if (ttl is null)
-            return Ok(new { locked = false, remainingSeconds = 0 });
-
-        return Ok(new { locked = true, remainingSeconds = (int)ttl.Value.TotalSeconds });
-    }
-
-    // POST /api/bookings/confirm
-    [HttpPost("confirm")]
-    public async Task<IActionResult> Confirm([FromBody] ConfirmBookingDto dto)
-    {
-        var booking = await seatLockService.ConfirmAndBookAsync(dto.EventId, GetUserId());
-        return StatusCode(201, new
-        {
-            message = "Booking confirmed successfully.",
-            bookingId = booking.Id,
-            eventId = booking.EventId,
-            status = booking.Status
-        });
-    }
-
-    // DELETE /api/bookings/lock/{eventId}
-    [HttpDelete("lock/{eventId:guid}")]
-    public async Task<IActionResult> ReleaseLock(Guid eventId)
-    {
-        await seatLockService.ReleaseLockAsync(eventId, GetUserId());
-        return Ok(new { message = "Reservation cancelled." });
+        var released = await seatLockService.ReleaseSelectedSeatLocksAsync(dto.EventSeatIds, GetUserId());
+        return Ok(new { message = "Reservation cancelled.", released });
     }
 
     // GET /api/bookings/user/{userId}

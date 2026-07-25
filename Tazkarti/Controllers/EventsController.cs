@@ -8,7 +8,7 @@ namespace Tazkarti.Controllers;
 
 [ApiController]
 [Route("api/events")]
-public class EventsController(EventService eventService) : ControllerBase
+public class EventsController(EventService eventService, SeatLockService seatLockService) : ControllerBase
 {
     // POST /api/events/create
     [HttpPost("create")]
@@ -41,6 +41,11 @@ public class EventsController(EventService eventService) : ControllerBase
     [HttpGet("getEventById/{id:guid}")]
     public async Task<IActionResult> GetById(Guid id)
         => Ok(await eventService.GetEventByIdAsync(id));
+
+    // GET /api/events/{id}/seat-map
+    [HttpGet("{id:guid}/seat-map")]
+    public async Task<IActionResult> GetSeatMap(Guid id)
+        => Ok(await seatLockService.GetSeatMapAsync(id));
 
     // PUT /api/events/updateEvent/{id}
     [HttpPut("updateEvent/{id:guid}")]

@@ -6,7 +6,7 @@ namespace Tazkarti.Models
         public Guid EventId { get; set; }
         public Guid SeatId { get; set; }
         public decimal Price { get; set; }
-        public string Status { get; set; } = "available";
+        public EventSeatStatus Status { get; set; } = EventSeatStatus.Available;
 
         public Event Event { get; set; } = null!;
         public Seat Seat { get; set; } = null!;

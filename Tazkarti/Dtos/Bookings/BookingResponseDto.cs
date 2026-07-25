@@ -7,5 +7,7 @@
         public DateTime CreatedAt { get; set; }
         public BookingEventDto Event { get; set; } = null!;
         public BookingUserDto User { get; set; } = null!;
+        public decimal TotalPrice { get; set; }
+        public IEnumerable<BookedSeatDto> Seats { get; set; } = [];
     }
 }
