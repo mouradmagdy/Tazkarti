@@ -1,6 +1,6 @@
 # Tazkarti
 
-Tazkarti is a full-stack event ticketing system with assigned-seat booking, an admin event dashboard, Redis seat reservations, and SQL Server persistence.
+Tazkarti is a full-stack event ticketing system with assigned-seat booking, an admin event dashboard, Redis seat reservations.
 
 ## Tech Stack
 
@@ -125,5 +125,4 @@ GitHub Actions currently runs:
 - Playwright browser tests
 - Full-stack Playwright tests with SQL Server and Redis service containers
 - Playwright reports and failure artifacts
-
-Docker images can be built locally and are ready to be added to a Docker Hub publishing workflow.
+- Build docker images and push them to registery
