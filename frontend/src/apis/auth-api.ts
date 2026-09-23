@@ -1,10 +1,11 @@
 import axios from "axios";
 import toast from "react-hot-toast";
+import { API_BASE_URL } from "@/lib/api";
 
 export const loginAPI = async (username: string, password: string) => {
   try {
     const response = await axios.post(
-      `${import.meta.env.VITE_API_URL}/api/auth/login`,
+      `${API_BASE_URL}/api/auth/login`,
       {
         username,
         password,
@@ -25,7 +26,7 @@ export const loginAPI = async (username: string, password: string) => {
 export const logoutAPI = async () => {
   try {
     const response = await axios.post(
-      `${import.meta.env.VITE_API_URL}/api/auth/logout`,
+      `${API_BASE_URL}/api/auth/logout`,
       {}, // this caused a problem of not sending the cookie to the server
       // so we need to send an empty object as the body
       {
@@ -48,7 +49,7 @@ export const logoutAPI = async () => {
 export const signupAPI = async (userData) => {
   try {
     const response = await axios.post(
-      `${import.meta.env.VITE_API_URL}/api/auth/signup`,
+      `${API_BASE_URL}/api/auth/signup`,
       {
         fullName: userData.fullName,
         username: userData.username,
@@ -73,7 +74,7 @@ export const signupAPI = async (userData) => {
 export const getCurrentUser = async () => {
   try {
     const response = await axios.get(
-      `${import.meta.env.VITE_API_URL}/api/auth/me`,
+      `${API_BASE_URL}/api/auth/me`,
       { withCredentials: true }
     );
     return response.data;

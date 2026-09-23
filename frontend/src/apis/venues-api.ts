@@ -1,7 +1,6 @@
 import axios from "axios";
 import toast from "react-hot-toast";
-
-const BASE = import.meta.env.VITE_API_URL;
+import { API_BASE_URL } from "@/lib/api";
 
 export interface CreateSeatPayload {
   row: string;
@@ -49,7 +48,7 @@ export interface VenueResponse {
 
 export async function getVenuesAPI() {
   try {
-    const response = await axios.get<VenueResponse[]>(`${BASE}/api/venues`, {
+    const response = await axios.get<VenueResponse[]>(`${API_BASE_URL}/api/venues`, {
       withCredentials: true,
     });
     return response.data;
@@ -65,7 +64,7 @@ export async function getVenuesAPI() {
 export async function createVenueAPI(payload: CreateVenuePayload) {
   try {
     const response = await axios.post<VenueResponse>(
-      `${BASE}/api/venues`,
+      `${API_BASE_URL}/api/venues`,
       payload,
       { withCredentials: true },
     );

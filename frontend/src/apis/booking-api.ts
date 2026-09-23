@@ -1,6 +1,5 @@
 import axios from "axios";
-
-const BASE = import.meta.env.VITE_API_URL;
+import { API_BASE_URL } from "@/lib/api";
 
 export interface LockSeatResponse {
   message: string;
@@ -41,7 +40,7 @@ export interface UserBookingsResponse {
 
 export async function lockEventSeatsAPI(eventId: string, eventSeatIds: string[]) {
   const response = await axios.post<LockSeatResponse>(
-    `${BASE}/api/bookings/lock-seats`,
+    `${API_BASE_URL}/api/bookings/lock-seats`,
     { eventId, eventSeatIds },
     { withCredentials: true },
   );
@@ -53,7 +52,7 @@ export async function confirmSeatBookingAPI(
   eventSeatIds: string[],
 ) {
   const response = await axios.post<AssignedSeatBookingResponse>(
-    `${BASE}/api/bookings/confirm-seats`,
+    `${API_BASE_URL}/api/bookings/confirm-seats`,
     { eventId, eventSeatIds },
     { withCredentials: true },
   );
@@ -65,7 +64,7 @@ export async function releaseEventSeatsAPI(
   eventSeatIds: string[],
 ) {
   const response = await axios.post(
-    `${BASE}/api/bookings/release-seats`,
+    `${API_BASE_URL}/api/bookings/release-seats`,
     { eventId, eventSeatIds },
     { withCredentials: true },
   );
@@ -74,7 +73,7 @@ export async function releaseEventSeatsAPI(
 
 export async function getUserBookingsAPI(userId: string) {
   const response = await axios.get<UserBookingsResponse>(
-    `${BASE}/api/bookings/user/${userId}`,
+    `${API_BASE_URL}/api/bookings/user/${userId}`,
     { withCredentials: true },
   );
   return response.data;

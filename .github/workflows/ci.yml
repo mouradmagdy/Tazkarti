@@ -96,16 +96,6 @@ jobs:
           --health-timeout 5s
           --health-retries 20
 
-      redis:
-        image: redis:7
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -139,7 +129,6 @@ jobs:
           ASPNETCORE_ENVIRONMENT: Development
           ASPNETCORE_URLS: http://127.0.0.1:5262
           ConnectionStrings__DefaultConnection: Server=127.0.0.1,1433;Database=TazkartiE2E;User Id=sa;Password=E2e_password_123!;TrustServerCertificate=True;Encrypt=False;
-          ConnectionStrings__Redis: 127.0.0.1:6379
           Jwt__Secret: ci-jwt-secret-that-is-at-least-32-characters-long
           AllowedOrigins__0: http://127.0.0.1:5173
           Cloudinary__CloudName: ci-cloud

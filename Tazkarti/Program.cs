@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using StackExchange.Redis;
 using System.Text;
 using Tazkarti.Data;
 using Tazkarti.Middleware;
@@ -43,13 +42,14 @@ builder.Services.AddIdentity<User, IdentityRole>(opt =>
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
 
-// ── Redis ─────────────────────────────────────────────────────────────────────
-builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
-    ConnectionMultiplexer.Connect(
-        builder.Configuration.GetConnectionString("Redis")!));
-
 // ── Cloudinary ────────────────────────────────────────────────────────────────
 var cloudSection = builder.Configuration.GetSection("Cloudinary");
+if (string.IsNullOrWhiteSpace(cloudSection["CloudName"]) ||
+    string.IsNullOrWhiteSpace(cloudSection["ApiKey"]) ||
+    string.IsNullOrWhiteSpace(cloudSection["ApiSecret"]))
+{
+    throw new InvalidOperationException("Cloudinary configuration is incomplete.");
+}
 builder.Services.AddSingleton(new Cloudinary(new Account(
     cloudSection["CloudName"],
     cloudSection["ApiKey"],
@@ -58,6 +58,10 @@ builder.Services.AddSingleton(new Cloudinary(new Account(
 // ── JWT (cookie-based, mirrors Node.js behaviour) ─────────────────────────────
 var jwtKey = builder.Configuration["Jwt:Secret"]
     ?? throw new InvalidOperationException("JWT secret not configured");
+if (Encoding.UTF8.GetByteCount(jwtKey) < 32)
+    throw new InvalidOperationException("JWT secret must be at least 32 bytes.");
+if (builder.Environment.IsProduction() && jwtKey.StartsWith("dev-only", StringComparison.Ordinal))
+    throw new InvalidOperationException("The development JWT secret cannot be used in production.");
 
 // Override Identity's default cookie auth scheme with JWT Bearer
 builder.Services.AddAuthentication(opt =>
@@ -101,6 +105,11 @@ builder.Services.AddScoped<VenueService>();
 // ── CORS ──────────────────────────────────────────────────────────────────────
 var allowedOrigins = builder.Configuration
     .GetSection("AllowedOrigins").Get<string[]>() ?? [];
+if (builder.Environment.IsProduction() &&
+    (allowedOrigins.Length == 0 || allowedOrigins.All(origin => origin.Contains("localhost"))))
+{
+    throw new InvalidOperationException("Configure AllowedOrigins with the production frontend URL.");
+}
 
 builder.Services.AddCors(opt =>
     opt.AddPolicy("FrontendPolicy", p => p
@@ -118,6 +127,11 @@ var app = builder.Build();
 // ── Middleware pipeline ───────────────────────────────────────────────────────
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -128,6 +142,7 @@ app.UseCors("FrontendPolicy");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 
 // ── Seed Identity roles on startup ────────────────────────────────────────────
 using (var scope = app.Services.CreateScope())
@@ -168,7 +183,7 @@ using (var scope = app.Services.CreateScope())
         await userManager.AddToRoleAsync(admin, "admin");
     }
 
-    await DemoDataSeeder.ResetEventsAsync(scope.ServiceProvider);
+    await DemoDataSeeder.SeedAsync(scope.ServiceProvider);
     if (config.GetValue<bool>("Seed:DemoData:ExitAfterReset"))
         return;
 }

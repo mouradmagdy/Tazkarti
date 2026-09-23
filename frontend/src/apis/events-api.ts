@@ -1,5 +1,6 @@
 import axios from "axios";
 import toast from "react-hot-toast";
+import { API_BASE_URL } from "@/lib/api";
 
 export interface EventResponse {
   id: string;
@@ -49,7 +50,7 @@ export interface SeatMapResponse {
 export const getAllEventsAPI = async (pageNumber, pageSize) => {
   try {
     const response = await axios.get(
-      `${import.meta.env.VITE_API_URL}/api/events/getAllEvents`,
+      `${API_BASE_URL}/api/events/getAllEvents`,
       {
         withCredentials: true,
         params: {
@@ -70,7 +71,7 @@ export const getAllEventsAPI = async (pageNumber, pageSize) => {
 export const getEventById = async (id: string) => {
   try {
     const response = await axios.get(
-      `${import.meta.env.VITE_API_URL}/api/events/getEventById/${id}`,
+      `${API_BASE_URL}/api/events/getEventById/${id}`,
       {
         withCredentials: true,
       }
@@ -87,7 +88,7 @@ export const getEventById = async (id: string) => {
 export const getSeatMapAPI = async (eventId: string) => {
   try {
     const response = await axios.get<SeatMapResponse>(
-      `${import.meta.env.VITE_API_URL}/api/events/${eventId}/seat-map`,
+      `${API_BASE_URL}/api/events/${eventId}/seat-map`,
       {
         withCredentials: true,
       },
@@ -106,7 +107,7 @@ export const getSeatMapAPI = async (eventId: string) => {
 export const createEventAPI = async (eventData) => {
   try {
     const response = await axios.post(
-      `${import.meta.env.VITE_API_URL}/api/events/create`,
+      `${API_BASE_URL}/api/events/create`,
       eventData,
       {
         headers: {
@@ -126,7 +127,7 @@ export const createEventAPI = async (eventData) => {
 export const updateEventAPI = async (id: string, eventData) => {
   try {
     const response = await axios.put(
-      `${import.meta.env.VITE_API_URL}/api/events/updateEvent/${id}`,
+      `${API_BASE_URL}/api/events/updateEvent/${id}`,
       eventData,
       {
         withCredentials: true,
@@ -144,7 +145,7 @@ export const updateEventAPI = async (id: string, eventData) => {
 export const deleteEventAPI = async (id: string) => {
   try {
     const response = await axios.delete(
-      `${import.meta.env.VITE_API_URL}/api/events/deleteEvent/${id}`,
+      `${API_BASE_URL}/api/events/deleteEvent/${id}`,
       {
         withCredentials: true,
       }

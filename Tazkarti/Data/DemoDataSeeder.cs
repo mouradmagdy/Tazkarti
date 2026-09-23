@@ -17,10 +17,12 @@ public static class DemoDataSeeder
         "Venues"
     ];
 
-    public static async Task ResetEventsAsync(IServiceProvider services)
+    public static async Task SeedAsync(IServiceProvider services)
     {
         var config = services.GetRequiredService<IConfiguration>();
-        if (!config.GetValue<bool>("Seed:DemoData:ResetEvents"))
+        var shouldReset = config.GetValue<bool>("Seed:DemoData:ResetEvents");
+        var shouldSeed = config.GetValue<bool>("Seed:DemoData:Enabled");
+        if (!shouldReset && !shouldSeed)
             return;
 
         var db = services.GetRequiredService<AppDbContext>();
@@ -28,18 +30,27 @@ public static class DemoDataSeeder
         var logger = services.GetRequiredService<ILoggerFactory>()
             .CreateLogger("DemoDataSeeder");
 
+        if (!shouldReset && await db.Events.AnyAsync())
+        {
+            logger.LogInformation("Demo data already exists; skipping seed.");
+            return;
+        }
+
         var admins = await userManager.GetUsersInRoleAsync("admin");
         var owner = admins.FirstOrDefault() ?? await db.Users.FirstOrDefaultAsync()
             ?? throw new InvalidOperationException("Cannot seed demo events without at least one user.");
 
-        await PrepareDatabaseForResetAsync(db, logger);
-        await DeleteTableInBatchesAsync(db, "BookingSeats", logger);
-        await DeleteTableInBatchesAsync(db, "Bookings", logger);
-        await DeleteTableInBatchesAsync(db, "EventSeats", logger);
-        await DeleteTableInBatchesAsync(db, "Events", logger);
-        await DeleteTableInBatchesAsync(db, "Seats", logger);
-        await DeleteTableInBatchesAsync(db, "Sections", logger);
-        await DeleteTableInBatchesAsync(db, "Venues", logger);
+        if (shouldReset)
+        {
+            await PrepareDatabaseForResetAsync(db, logger);
+            await DeleteTableInBatchesAsync(db, "BookingSeats", logger);
+            await DeleteTableInBatchesAsync(db, "Bookings", logger);
+            await DeleteTableInBatchesAsync(db, "EventSeats", logger);
+            await DeleteTableInBatchesAsync(db, "Events", logger);
+            await DeleteTableInBatchesAsync(db, "Seats", logger);
+            await DeleteTableInBatchesAsync(db, "Sections", logger);
+            await DeleteTableInBatchesAsync(db, "Venues", logger);
+        }
 
         var venues = BuildVenues();
         db.Venues.AddRange(venues);

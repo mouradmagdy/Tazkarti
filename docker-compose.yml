@@ -7,23 +7,16 @@ services:
     volumes:
       - sqlserver_data:/var/opt/mssql
 
-  redis:
-    image: redis:7-alpine
-    volumes:
-      - redis_data:/data
-
   api:
     build:
       context: .
       dockerfile: Tazkarti/Dockerfile
     depends_on:
       - sqlserver
-      - redis
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DefaultConnection: Server=sqlserver,1433;Database=TazkartiDocker;User Id=sa;Password=${TAZKARTI_DOCKER_MSSQL_SA_PASSWORD:-Tazkarti_password_123!};TrustServerCertificate=True;Encrypt=False;
-      ConnectionStrings__Redis: redis:6379,abortConnect=false
       Jwt__Secret: ${TAZKARTI_DOCKER_JWT_SECRET:-local-docker-jwt-secret-change-me-please-32-chars}
       Cloudinary__CloudName: ${TAZKARTI_DOCKER_CLOUDINARY_CLOUD_NAME:-your-cloudinary-cloud-name}
       Cloudinary__ApiKey: ${TAZKARTI_DOCKER_CLOUDINARY_API_KEY:-your-cloudinary-api-key}
@@ -53,4 +46,3 @@ services:
 
 volumes:
   sqlserver_data:
-  redis_data:

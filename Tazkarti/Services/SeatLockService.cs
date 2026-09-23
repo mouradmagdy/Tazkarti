@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using StackExchange.Redis;
 using Tazkarti.Data;
 using Tazkarti.Dtos.Bookings;
 using Tazkarti.Helpers;
@@ -7,39 +6,11 @@ using Tazkarti.Models;
 
 namespace Tazkarti.Services
 {
-    public class SeatLockService(IConnectionMultiplexer redis, AppDbContext db, ILogger<SeatLockService> logger)
+    public class SeatLockService(AppDbContext db, ILogger<SeatLockService> logger)
     {
         private const int LockTtlSeconds = 300;
         private const int MaxSeatsPerBooking = 8;
         private const string SeatStatusHeld = "held";
-
-        private const string TryLockSelectedSeatsScript = """
-            for i = 1, #KEYS do
-                local owner = redis.call('GET', KEYS[i])
-                if owner and owner ~= ARGV[1] then
-                    return 0
-                end
-            end
-
-            for i = 1, #KEYS do
-                redis.call('SET', KEYS[i], ARGV[1], 'PX', ARGV[2])
-            end
-
-            return 1
-            """;
-
-        private const string ReleaseSelectedSeatsScript = """
-            local released = 0
-            for i = 1, #KEYS do
-                if redis.call('GET', KEYS[i]) == ARGV[1] then
-                    redis.call('DEL', KEYS[i])
-                    released = released + 1
-                end
-            end
-            return released
-            """;
-
-        private IDatabase Cache => redis.GetDatabase();
 
         public async Task<SeatMapDto> GetSeatMapAsync(Guid eventId)
         {
@@ -61,6 +32,7 @@ namespace Tazkarti.Services
                     SeatId = es.SeatId,
                     es.Price,
                     es.Status,
+                    es.HoldExpiresAt,
                     es.Seat.Row,
                     es.Seat.Number,
                     es.Seat.Label,
@@ -77,13 +49,7 @@ namespace Tazkarti.Services
             if (seats.Count == 0)
                 throw new BadRequestException("This event does not have event seats generated yet.");
 
-            var lockValues = await Cache.StringGetAsync(
-                seats.Select(s => (RedisKey)EventSeatLockKey(s.EventSeatId)).ToArray());
-
-            var heldSeatIds = seats
-                .Where((_, index) => !lockValues[index].IsNullOrEmpty)
-                .Select(s => s.EventSeatId)
-                .ToHashSet();
+            var now = DateTime.UtcNow;
 
             return new SeatMapDto
             {
@@ -115,7 +81,7 @@ namespace Tazkarti.Services
                                 Y = s.Y,
                                 IsAccessible = s.IsAccessible,
                                 Price = s.Price,
-                                Status = s.Status == EventSeatStatus.Available && heldSeatIds.Contains(s.EventSeatId)
+                                Status = s.Status == EventSeatStatus.Available && s.HoldExpiresAt > now
                                     ? SeatStatusHeld
                                     : ToApiStatus(s.Status)
                             })
@@ -134,12 +100,33 @@ namespace Tazkarti.Services
             if (selectedSeats.Any(s => s.Status != EventSeatStatus.Available))
                 throw new ConflictException("One or more selected seats are no longer available.");
 
-            var locked = (int)(long)await Cache.ScriptEvaluateAsync(
-                TryLockSelectedSeatsScript,
-                seatIds.Select(id => (RedisKey)EventSeatLockKey(id)).ToArray(),
-                [userId, LockTtlSeconds * 1000]);
+            var now = DateTime.UtcNow;
+            var expiresAt = now.AddSeconds(LockTtlSeconds);
+            var strategy = db.Database.CreateExecutionStrategy();
+            var acquiredAllSeats = await strategy.ExecuteAsync(async () =>
+            {
+                await using var tx = await db.Database.BeginTransactionAsync();
+                var locked = await db.EventSeats
+                    .Where(es =>
+                        es.EventId == eventId &&
+                        seatIds.Contains(es.Id) &&
+                        es.Status == EventSeatStatus.Available &&
+                        (es.HoldExpiresAt == null || es.HoldExpiresAt <= now || es.HeldByUserId == userId))
+                    .ExecuteUpdateAsync(update => update
+                        .SetProperty(es => es.HeldByUserId, userId)
+                        .SetProperty(es => es.HoldExpiresAt, expiresAt));
 
-            if (locked != 1)
+                if (locked != seatIds.Count)
+                {
+                    await tx.RollbackAsync();
+                    return false;
+                }
+
+                await tx.CommitAsync();
+                return true;
+            });
+
+            if (!acquiredAllSeats)
                 throw new ConflictException("One or more selected seats are already held by another user.");
 
             logger.LogInformation(
@@ -162,21 +149,24 @@ namespace Tazkarti.Services
         {
             var seatIds = NormalizeSeatSelection(eventSeatIds);
             var selectedSeats = await GetSelectedEventSeatsAsync(eventId, seatIds);
-            await EnsureUserOwnsSeatLocksAsync(seatIds, userId);
-
             var strategy = db.Database.CreateExecutionStrategy();
             var response = await strategy.ExecuteAsync(async () =>
             {
                 await using var tx = await db.Database.BeginTransactionAsync();
                 try
                 {
+                    var now = DateTime.UtcNow;
                     var updatedSeats = await db.EventSeats
                         .Where(es =>
                             es.EventId == eventId &&
                             seatIds.Contains(es.Id) &&
-                            es.Status == EventSeatStatus.Available)
-                        .ExecuteUpdateAsync(s =>
-                            s.SetProperty(es => es.Status, EventSeatStatus.Sold));
+                            es.Status == EventSeatStatus.Available &&
+                            es.HeldByUserId == userId &&
+                            es.HoldExpiresAt > now)
+                        .ExecuteUpdateAsync(s => s
+                            .SetProperty(es => es.Status, EventSeatStatus.Sold)
+                            .SetProperty(es => es.HeldByUserId, (string?)null)
+                            .SetProperty(es => es.HoldExpiresAt, (DateTime?)null));
 
                     if (updatedSeats != seatIds.Count)
                         throw new ConflictException("One or more selected seats are no longer available.");
@@ -240,8 +230,6 @@ namespace Tazkarti.Services
                 }
             });
 
-            await ReleaseSelectedSeatLocksAsync(seatIds, userId);
-
             logger.LogInformation(
                 "Assigned-seat booking confirmed. User {UserId}, Event {EventId}, Booking {BookingId}, Seats {SeatCount}",
                 userId,
@@ -257,10 +245,14 @@ namespace Tazkarti.Services
             string userId)
         {
             var seatIds = NormalizeSeatSelection(eventSeatIds);
-            var released = (int)(long)await Cache.ScriptEvaluateAsync(
-                ReleaseSelectedSeatsScript,
-                seatIds.Select(id => (RedisKey)EventSeatLockKey(id)).ToArray(),
-                [userId]);
+            var released = await db.EventSeats
+                .Where(es =>
+                    seatIds.Contains(es.Id) &&
+                    es.Status == EventSeatStatus.Available &&
+                    es.HeldByUserId == userId)
+                .ExecuteUpdateAsync(update => update
+                    .SetProperty(es => es.HeldByUserId, (string?)null)
+                    .SetProperty(es => es.HoldExpiresAt, (DateTime?)null));
 
             logger.LogInformation(
                 "Released {SeatCount} assigned-seat locks for user {UserId}",
@@ -268,15 +260,6 @@ namespace Tazkarti.Services
                 userId);
 
             return released;
-        }
-
-        private async Task EnsureUserOwnsSeatLocksAsync(IReadOnlyCollection<Guid> seatIds, string userId)
-        {
-            var values = await Cache.StringGetAsync(
-                seatIds.Select(id => (RedisKey)EventSeatLockKey(id)).ToArray());
-
-            if (values.Any(value => value.IsNullOrEmpty || value.ToString() != userId))
-                throw new ConflictException("Seat lock expired or not found. Please try again.");
         }
 
         private async Task<List<SelectedEventSeat>> GetSelectedEventSeatsAsync(
@@ -319,9 +302,6 @@ namespace Tazkarti.Services
 
             return distinctSeatIds;
         }
-
-        private static string EventSeatLockKey(Guid eventSeatId)
-            => $"lock:event-seat:{eventSeatId}";
 
         private static bool IsUniqueConstraintViolation(DbUpdateException ex)
             => ex.InnerException?.Message.Contains("IX_BookingSeats_EventSeatId", StringComparison.OrdinalIgnoreCase) == true

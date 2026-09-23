@@ -79,7 +79,60 @@ test.describe('real backend booking flow', () => {
     await anonymousApi.dispose();
     await api.dispose();
   });
+
+  test('prevents two users from holding the same seat', async () => {
+    const firstUser = await createAuthenticatedApi('first');
+    const secondUser = await createAuthenticatedApi('second');
+    const event = await getBookableEvent(firstUser);
+    const [seat] = await getAvailableSeats(firstUser, event.id, 1);
+
+    const firstLock = await firstUser.post('/api/bookings/lock-seats', {
+      data: { eventId: event.id, eventSeatIds: [seat.eventSeatId] },
+    });
+    expect(firstLock.ok()).toBeTruthy();
+
+    const competingLock = await secondUser.post('/api/bookings/lock-seats', {
+      data: { eventId: event.id, eventSeatIds: [seat.eventSeatId] },
+    });
+    expect(competingLock.status()).toBe(409);
+
+    const release = await firstUser.post('/api/bookings/release-seats', {
+      data: { eventId: event.id, eventSeatIds: [seat.eventSeatId] },
+    });
+    expect(release.ok()).toBeTruthy();
+
+    const lockAfterRelease = await secondUser.post('/api/bookings/lock-seats', {
+      data: { eventId: event.id, eventSeatIds: [seat.eventSeatId] },
+    });
+    expect(lockAfterRelease.ok()).toBeTruthy();
+
+    await firstUser.dispose();
+    await secondUser.dispose();
+  });
 });
+
+async function createAuthenticatedApi(label: string) {
+  const anonymousApi = await request.newContext({ baseURL: API_URL });
+  const username = `e2e${label}${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
+  const signupResponse = await anonymousApi.post('/api/auth/signup', {
+    data: {
+      fullName: `E2E ${label} User`,
+      username,
+      password: USER_PASSWORD,
+      confirmPassword: USER_PASSWORD,
+      gender: 'male',
+    },
+  });
+
+  expect(signupResponse.status()).toBe(201);
+  const authCookie = extractJwtCookie(signupResponse);
+  await anonymousApi.dispose();
+
+  return request.newContext({
+    baseURL: API_URL,
+    extraHTTPHeaders: { Cookie: authCookie },
+  });
+}
 
 async function getBookableEvent(api: APIRequestContext) {
   const response = await api.get('/api/events/getAllEvents', {

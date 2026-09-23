@@ -121,9 +121,11 @@ namespace Tazkarti.Data
                 e.HasKey(es => es.Id);
                 e.HasIndex(es => new { es.EventId, es.SeatId }).IsUnique();
                 e.HasIndex(es => new { es.EventId, es.Status });
+                e.HasIndex(es => es.HoldExpiresAt);
                 e.HasIndex(es => es.SeatId);
 
                 e.Property(es => es.Price).HasColumnType("decimal(10,2)");
+                e.Property(es => es.HeldByUserId).HasMaxLength(450);
                 e.Property(es => es.Status)
                  .HasConversion(
                     status => status.ToString().ToLowerInvariant(),

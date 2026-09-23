@@ -1,4 +1,5 @@
 import axios from "axios";
+import { API_BASE_URL } from "@/lib/api";
 import {
   createContext,
   useContext,
@@ -47,7 +48,7 @@ export const AuthContextProvider = ({ children }: { children: ReactNode }) => {
     const checkAuth = async () => {
       try {
         const response = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/auth/me`,
+          `${API_BASE_URL}/api/auth/me`,
           {
             withCredentials: true,
           },
