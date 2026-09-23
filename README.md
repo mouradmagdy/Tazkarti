@@ -164,7 +164,7 @@ MONSTER_USERNAME=siteXXXXX
 MONSTER_PASSWORD=<WebDeploy password>
 ```
 
-Manually run **Deploy API to MonsterASP.NET** after adding the secrets. Verify `https://<api-host>/health` returns `{"status":"healthy"}`.
+After adding the secrets, push a backend change to this branch to deploy. You can also manually rerun **Deploy API to MonsterASP.NET** after its first run. Verify `https://<api-host>/health` returns `{"status":"healthy"}`.
 
 ### 2. Vercel
 

@@ -2,6 +2,11 @@ name: Deploy API to MonsterASP.NET
 
 on:
   workflow_dispatch:
+  push:
+    branches: [deployment-monster-vercel]
+    paths:
+      - "Tazkarti/**"
+      - ".github/workflows/deploy-monster.yml"
 
 permissions:
   contents: read
