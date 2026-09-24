@@ -175,10 +175,9 @@ Root Directory: frontend
 Framework Preset: Vite
 Build Command: npm run build
 Output Directory: dist
-API_ORIGIN=https://<api-host>
 ```
 
-`API_ORIGIN` is a server-side Vercel variable. The included rewrite proxies `/api/*` to Monster so the authentication cookie remains first-party. Leave `VITE_API_URL` unset in Vercel. After Vercel assigns the final production URL, make sure it exactly matches `AllowedOrigins__0` on Monster, then restart the API. Do not include a trailing slash in either URL.
+The included rewrite proxies `/api/*` to `https://tazkarti-mourad.runasp.net` so the authentication cookie remains first-party. Leave both `API_ORIGIN` and `VITE_API_URL` unset in Vercel. After Vercel assigns the final production URL, make sure it exactly matches `AllowedOrigins__0` on Monster, then restart the API. Do not include a trailing slash in either URL.
 
 ### Secret rotation
 
